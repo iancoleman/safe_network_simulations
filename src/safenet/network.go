@@ -6,6 +6,7 @@ import (
 
 const GroupSize = 8
 const SplitBuffer = 3
+const QuorumSize = 5
 const SplitSize = GroupSize + SplitBuffer
 
 type Network struct {

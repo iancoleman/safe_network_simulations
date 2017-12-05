@@ -1,8 +1,9 @@
 package safenet
 
 type Vault struct {
-	Name   XorName
-	Prefix Prefix
+	Name       XorName
+	Prefix     Prefix
+	IsAttacker bool
 }
 
 func NewVault() *Vault {
