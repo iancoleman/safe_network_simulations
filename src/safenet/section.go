@@ -80,7 +80,7 @@ func (s *Section) addVault(v *Vault) []*Section {
 	} else {
 		fmt.Println("Warning: New vault has no hypothetical future group")
 	}
-	// split if needed
+	// split if needed - details are handled by network
 	if s.LeftTotalVaults >= SplitSize && s.RightTotalVaults >= SplitSize {
 		s1 := newSection(s.LeftPrefix, s.Left)
 		s2 := newSection(s.RightPrefix, s.Right)
@@ -94,8 +94,24 @@ func (s *Section) addVault(v *Vault) []*Section {
 }
 
 func (s *Section) removeVault(v *Vault) {
+	// remove from section
 	s.TotalVaults = s.TotalVaults - 1
 	delete(s.Vaults, v.Name.binary)
+	// remove from hypothetical future section
+	if v.Name.StartsWith(s.LeftPrefix) {
+		delete(s.Left, v.Name.binary)
+		s.LeftTotalVaults = s.LeftTotalVaults - 1
+	} else if v.Name.StartsWith(s.RightPrefix) {
+		delete(s.Right, v.Name.binary)
+		s.RightTotalVaults = s.RightTotalVaults - 1
+	} else {
+		fmt.Println("Warning: removeVault missing from hypothetical group")
+	}
+	// track attack
+	if v.IsAttacker {
+		s.TotalAttackedVaults = s.TotalAttackedVaults - 1
+		s.checkIfAttacked()
+	}
 	// set new target vault if needed
 	if v == s.TargetVault {
 		s.setNewTargetVault()
@@ -120,7 +136,5 @@ func (s *Section) setNewTargetVault() {
 func (s *Section) checkIfAttacked() {
 	attackPct := float64(s.TotalAttackedVaults) / float64(s.TotalVaults)
 	quorumPct := float64(QuorumSize) / float64(GroupSize)
-	if attackPct >= quorumPct {
-		s.IsAttacked = true
-	}
+	s.IsAttacked = attackPct >= quorumPct
 }
