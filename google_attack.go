@@ -46,7 +46,7 @@ func main() {
 			fmt.Print(attackVaultCount, "attacking vaults added\r")
 		}
 		// check if attack has worked
-		s := network.Sections[v.Prefix]
+		s := network.Sections[v.Prefix.Key]
 		if s.IsAttacked {
 			ownsSection = true
 		}

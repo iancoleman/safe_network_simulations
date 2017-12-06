@@ -10,7 +10,7 @@ const QuorumSize = 5
 const SplitSize = GroupSize + SplitBuffer
 
 type Network struct {
-	Sections           map[Prefix]*Section
+	Sections           map[string]*Section
 	TargetPrefix       Prefix
 	TotalVaults        int
 	TotalSections      int
@@ -24,7 +24,7 @@ type Network struct {
 
 func NewNetwork() Network {
 	return Network{
-		Sections: map[Prefix]*Section{},
+		Sections: map[string]*Section{},
 	}
 }
 
@@ -35,12 +35,12 @@ func (n *Network) AddVault(v *Vault) {
 	n.TotalVaultEvents = n.TotalVaultEvents + 1
 	// get prefix for vault
 	prefix := n.getPrefixForXorname(v.Name)
-	section, exists := n.Sections[prefix]
+	section, exists := n.Sections[prefix.Key]
 	// get the section for this prefix
 	if !exists {
-		var blankPrefix Prefix
-		section = newSection(blankPrefix, map[string]*Vault{})
-		n.Sections[section.Prefix] = section
+		blankPrefix := NewBlankPrefix()
+		section = newSection(blankPrefix, map[*Vault]bool{})
+		n.Sections[section.Prefix.Key] = section
 		n.TotalSections = n.TotalSections + 1
 	}
 	// add the vault to the section
@@ -51,11 +51,11 @@ func (n *Network) AddVault(v *Vault) {
 		n.TotalSectionEvents = n.TotalSectionEvents + 1
 		// add new sections
 		for _, s := range newSections {
-			n.Sections[s.Prefix] = s
+			n.Sections[s.Prefix.Key] = s
 			n.TotalSections = n.TotalSections + 1
 		}
 		// remove old section
-		delete(n.Sections, section.Prefix)
+		delete(n.Sections, section.Prefix.Key)
 		n.TotalSections = n.TotalSections - 1
 	}
 	n.updateTargetSection()
@@ -65,7 +65,7 @@ func (n *Network) RemoveVault(v *Vault) {
 	n.TotalVaults = n.TotalVaults - 1
 	n.TotalDepartures = n.TotalDepartures + 1
 	n.TotalVaultEvents = n.TotalVaultEvents + 1
-	section, exists := n.Sections[v.Prefix]
+	section, exists := n.Sections[v.Prefix.Key]
 	if !exists {
 		fmt.Println("Warning: No section for removeVault", v.Prefix)
 		return
@@ -76,51 +76,46 @@ func (n *Network) RemoveVault(v *Vault) {
 	if section.TotalVaults < GroupSize {
 		n.TotalMerges = n.TotalMerges + 1
 		n.TotalSectionEvents = n.TotalSectionEvents + 1
-		parentPrefix := section.Prefix[:len(section.Prefix)-1]
+		parentPrefix := section.Prefix.parent()
 		// get sibling prefix
-		siblingBit := Prefix("0")
-		prefixLastBit := section.Prefix[len(section.Prefix)-1]
-		if prefixLastBit == '0' {
-			siblingBit = "1"
-		}
-		siblingPrefix := parentPrefix + siblingBit
+		siblingPrefix := v.Prefix.sibling()
 		// get sibling vaults
 		parentVaults := section.Vaults
-		_, exists := n.Sections[siblingPrefix]
+		_, exists := n.Sections[siblingPrefix.Key]
 		if exists {
 			// merge sibling
-			siblingVaults := n.Sections[siblingPrefix].Vaults
-			for _, v := range siblingVaults {
-				parentVaults[v.Name.binary] = v
+			siblingVaults := n.Sections[siblingPrefix.Key].Vaults
+			for v := range siblingVaults {
+				parentVaults[v] = true
 			}
-			delete(n.Sections, siblingPrefix)
+			delete(n.Sections, siblingPrefix.Key)
 			n.TotalSections = n.TotalSections - 1
 		} else {
 			// get child vaults
 			childPrefixes := n.getChildPrefixes(siblingPrefix)
 			for _, childPrefix := range childPrefixes {
 				// merge child vault
-				childVaults := n.Sections[childPrefix].Vaults
-				for _, v := range childVaults {
-					parentVaults[v.Name.binary] = v
+				childVaults := n.Sections[childPrefix.Key].Vaults
+				for v := range childVaults {
+					parentVaults[v] = true
 				}
-				delete(n.Sections, childPrefix)
+				delete(n.Sections, childPrefix.Key)
 				n.TotalSections = n.TotalSections - 1
 			}
 		}
 		// remove the merged section
-		delete(n.Sections, section.Prefix)
+		delete(n.Sections, section.Prefix.Key)
 		n.TotalSections = n.TotalSections - 1
 		// create the new section
 		s := newSection(parentPrefix, parentVaults)
-		n.Sections[s.Prefix] = s
+		n.Sections[s.Prefix.Key] = s
 		n.TotalSections = n.TotalSections + 1
 	}
 	n.updateTargetSection()
 }
 
 func (n *Network) GetRandomVault() *Vault {
-	return n.Sections[n.TargetPrefix].TargetVault
+	return n.Sections[n.TargetPrefix.Key].TargetVault
 }
 
 // Sets the target section to a new section
@@ -134,10 +129,10 @@ func (n *Network) updateTargetSection() {
 
 func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
 	prefixes := []Prefix{}
-	leftPrefix := prefix + "0"
-	rightPrefix := prefix + "1"
-	_, leftExists := n.Sections[leftPrefix]
-	_, rightExists := n.Sections[rightPrefix]
+	leftPrefix := prefix.extendLeft()
+	rightPrefix := prefix.extendRight()
+	_, leftExists := n.Sections[leftPrefix.Key]
+	_, rightExists := n.Sections[rightPrefix.Key]
 	if leftExists && rightExists {
 		prefixes = append(prefixes, leftPrefix, rightPrefix)
 	} else if leftExists {
@@ -146,7 +141,7 @@ func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
 	} else if rightExists {
 		prefixes = append(prefixes, rightPrefix)
 		prefixes = append(prefixes, n.getChildPrefixes(leftPrefix)...)
-	} else if len(prefix) < 256 {
+	} else if len(prefix.id) < 256 {
 		prefixes = append(prefixes, n.getChildPrefixes(leftPrefix)...)
 		prefixes = append(prefixes, n.getChildPrefixes(rightPrefix)...)
 	} else {
@@ -156,11 +151,31 @@ func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
 }
 
 func (n *Network) getPrefixForXorname(x XorName) Prefix {
-	var prefix Prefix
-	_, exists := n.Sections[prefix]
-	for !exists && len(prefix) < len(x.binary) {
-		prefix = prefix + Prefix(x.binary[len(prefix)])
-		_, exists = n.Sections[prefix]
+	prefix := NewBlankPrefix()
+	_, exists := n.Sections[prefix.Key]
+	xornameBitIndex := uint(0)
+	xornameByteIndex := uint(0)
+	for !exists && len(prefix.id) < xornameBits {
+		// get the next bit of the xorname prefix
+		xornameByteIndex = xornameBitIndex / 8
+		maskBitIndex := xornameBitIndex % 8
+		maskByte := byte(0x80) >> maskBitIndex
+		// AND the byte with the mask to give 0 if the bit is 0 or maskByte if
+		// it's 1
+		bit := x[xornameByteIndex] & maskByte
+		// extend the prefix depending on the bit of the xorname
+		if bit == 0 {
+			prefix = prefix.extendLeft()
+		} else {
+			prefix = prefix.extendRight()
+		}
+		_, exists = n.Sections[prefix.Key]
+		// update the next bit to check in the xorname
+		xornameBitIndex = xornameBitIndex + 1
+	}
+	if !exists && n.TotalVaults > 1 {
+		fmt.Println("Warning: No prefix for xorname")
+		return NewBlankPrefix()
 	}
 	return prefix
 }

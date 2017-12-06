@@ -1,52 +1,37 @@
 package safenet
 
-import (
-	"fmt"
-)
-
 type Section struct {
 	Prefix              Prefix
 	TotalVaults         int
-	Vaults              map[string]*Vault
-	LeftPrefix          Prefix
-	RightPrefix         Prefix
+	Vaults              map[*Vault]bool
 	LeftTotalVaults     int
-	Left                map[string]*Vault
 	RightTotalVaults    int
-	Right               map[string]*Vault
 	TargetVault         *Vault
 	TotalAttackedVaults int
 	IsAttacked          bool
 }
 
-func newSection(prefix Prefix, vaults map[string]*Vault) *Section {
+func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
 	s := Section{
 		Prefix:      prefix,
-		LeftPrefix:  prefix + "0",
-		RightPrefix: prefix + "1",
 		TotalVaults: 0,
 		Vaults:      vaults,
-		Left:        map[string]*Vault{},
-		Right:       map[string]*Vault{},
 	}
-	// track target vault
-	for _, v := range vaults {
+	// update each vault for new section data
+	leftPrefix := prefix.extendLeft()
+	for v := range vaults {
 		s.TotalVaults = s.TotalVaults + 1
-		// set new prefix
+		// set new prefix for vault
 		v.SetPrefix(prefix)
 		// track attack
 		if v.IsAttacker {
 			s.TotalAttackedVaults = s.TotalAttackedVaults + 1
 		}
-		// form hypothetical future groups
-		if v.Name.StartsWith(s.LeftPrefix) {
-			s.Left[v.Name.binary] = v
+		// track hypothetical future groups
+		if leftPrefix.Matches(v.Name) {
 			s.LeftTotalVaults = s.LeftTotalVaults + 1
-		} else if v.Name.StartsWith(s.RightPrefix) {
-			s.Right[v.Name.binary] = v
-			s.RightTotalVaults = s.RightTotalVaults + 1
 		} else {
-			fmt.Println("Warning: New section vault has no hypothetical group")
+			s.RightTotalVaults = s.RightTotalVaults + 1
 		}
 		// set target vault if is smallest
 		if s.TotalVaults == 1 {
@@ -63,49 +48,55 @@ func newSection(prefix Prefix, vaults map[string]*Vault) *Section {
 
 func (s *Section) addVault(v *Vault) []*Section {
 	v.SetPrefix(s.Prefix)
-	s.Vaults[v.Name.binary] = v
+	s.Vaults[v] = true
 	s.TotalVaults = s.TotalVaults + 1
 	// track attack
 	if v.IsAttacker {
 		s.TotalAttackedVaults = s.TotalAttackedVaults + 1
 	}
 	s.checkIfAttacked()
-	// add to hypothetical future group
-	if v.Name.StartsWith(s.LeftPrefix) {
-		s.Left[v.Name.binary] = v
+	// track hypothetical future group
+	leftPrefix := s.Prefix.extendLeft()
+	if leftPrefix.Matches(v.Name) {
 		s.LeftTotalVaults = s.LeftTotalVaults + 1
-	} else if v.Name.StartsWith(s.RightPrefix) {
-		s.Right[v.Name.binary] = v
-		s.RightTotalVaults = s.RightTotalVaults + 1
 	} else {
-		fmt.Println("Warning: New vault has no hypothetical future group")
+		s.RightTotalVaults = s.RightTotalVaults + 1
 	}
-	// split if needed - details are handled by network
+	// split into two groups if needed
+	// details are handled by network upon returning two new sections
 	if s.LeftTotalVaults >= SplitSize && s.RightTotalVaults >= SplitSize {
-		s1 := newSection(s.LeftPrefix, s.Left)
-		s2 := newSection(s.RightPrefix, s.Right)
+		left := map[*Vault]bool{}
+		right := map[*Vault]bool{}
+		for v := range s.Vaults {
+			if leftPrefix.Matches(v.Name) {
+				left[v] = true
+			} else {
+				right[v] = true
+			}
+		}
+		s1 := newSection(leftPrefix, left)
+		rightPrefix := s.Prefix.extendRight()
+		s2 := newSection(rightPrefix, right)
 		return []*Section{s1, s2}
 	}
 	// set target vault
 	if s.TargetVault == nil || v.Name.IsBefore(s.TargetVault.Name) {
 		s.TargetVault = v
 	}
+	// no split so return zero new sections
 	return []*Section{}
 }
 
 func (s *Section) removeVault(v *Vault) {
 	// remove from section
 	s.TotalVaults = s.TotalVaults - 1
-	delete(s.Vaults, v.Name.binary)
-	// remove from hypothetical future section
-	if v.Name.StartsWith(s.LeftPrefix) {
-		delete(s.Left, v.Name.binary)
+	delete(s.Vaults, v)
+	// track hypothetical future section
+	leftPrefix := s.Prefix.extendLeft()
+	if leftPrefix.Matches(v.Name) {
 		s.LeftTotalVaults = s.LeftTotalVaults - 1
-	} else if v.Name.StartsWith(s.RightPrefix) {
-		delete(s.Right, v.Name.binary)
-		s.RightTotalVaults = s.RightTotalVaults - 1
 	} else {
-		fmt.Println("Warning: removeVault missing from hypothetical group")
+		s.RightTotalVaults = s.RightTotalVaults - 1
 	}
 	// track attack
 	if v.IsAttacker {
@@ -121,7 +112,7 @@ func (s *Section) removeVault(v *Vault) {
 
 func (s *Section) setNewTargetVault() {
 	isFirst := true
-	for _, v := range s.Vaults {
+	for v := range s.Vaults {
 		if isFirst {
 			s.TargetVault = v
 			isFirst = false
