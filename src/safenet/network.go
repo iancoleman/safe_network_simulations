@@ -47,9 +47,11 @@ func (n *Network) AddVault(v *Vault) {
 	// get the section for this prefix
 	if !exists {
 		blankPrefix := NewBlankPrefix()
-		section = newSection(blankPrefix, map[*Vault]bool{})
-		n.Sections[section.Prefix.Key] = section
-		n.TotalSections = n.TotalSections + 1
+		sections := newSection(blankPrefix, map[*Vault]bool{})
+		for _, section = range sections {
+			n.Sections[section.Prefix.Key] = section
+			n.TotalSections = n.TotalSections + 1
+		}
 	}
 	// add the vault to the section
 	newSections := section.addVault(v)
@@ -78,20 +80,14 @@ func (n *Network) RelocateVault(v *Vault) {
 		n.RemoveVault(v)
 		// rename it to give a new location on the network
 		v.Rename()
+		// prevent relocation to the same section
+		newPrefix := n.getPrefixForXorname(v.Name)
+		for v.Prefix.Equals(newPrefix) {
+			v.Rename()
+			newPrefix = n.getPrefixForXorname(v.Name)
+		}
 		// add to appropriate section
 		n.AddVault(v)
-	}
-}
-
-func (n *Network) AddOrRelocateVault() {
-	if prng.Float32() < 0.9 {
-		v := NewVault()
-		n.AddVault(v)
-	} else {
-		v := n.GetRandomVault()
-		if v != nil {
-			n.RelocateVault(v)
-		}
 	}
 }
 
@@ -141,9 +137,11 @@ func (n *Network) RemoveVault(v *Vault) {
 		delete(n.Sections, section.Prefix.Key)
 		n.TotalSections = n.TotalSections - 1
 		// create the new section
-		s := newSection(parentPrefix, parentVaults)
-		n.Sections[s.Prefix.Key] = s
-		n.TotalSections = n.TotalSections + 1
+		sections := newSection(parentPrefix, parentVaults)
+		for _, s := range sections {
+			n.Sections[s.Prefix.Key] = s
+			n.TotalSections = n.TotalSections + 1
+		}
 	}
 }
 

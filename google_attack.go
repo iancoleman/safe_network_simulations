@@ -27,12 +27,16 @@ func main() {
 			progress := int(float64(i) / float64(totalEvents) * 100.0)
 			fmt.Print("   ", progress, "%\r")
 		}
-		// create a new vault or relocate an existing one
-		network.AddOrRelocateVault()
+		// create a new vault
+		v := safenet.NewVault()
+		network.AddVault(v)
+		// relocate a vault
+		r := network.GetRandomVault()
+		network.RelocateVault(r)
 		// remove existing vaults until network is back to capacity
 		for network.TotalVaults > netsize {
-			v := network.GetRandomVault()
-			network.RemoveVault(v)
+			e := network.GetRandomVault()
+			network.RemoveVault(e)
 		}
 	}
 	fmt.Println("   100%\n")
@@ -73,6 +77,7 @@ func main() {
 	// report
 	fmt.Println(attackVaultCount, "attacking vaults added to own a section")
 	fmt.Println(network.TotalVaults, "vaults after attack")
+	fmt.Println(network.TotalSections, "sections after attack")
 	pctOwned := float64(attackVaultCount) / float64(network.TotalVaults) * 100
 	fmt.Println(pctOwned, "percent of total network owned by attacker")
 }

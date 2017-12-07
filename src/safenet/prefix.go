@@ -100,6 +100,10 @@ func (p Prefix) BinaryString() string {
 	return pb
 }
 
+func (p Prefix) Equals(q Prefix) bool {
+	return p.Key == q.Key
+}
+
 func (p Prefix) Matches(x XorName) bool {
 	totalBytes := p.totalBytes()
 	if totalBytes > len(x) {

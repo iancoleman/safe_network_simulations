@@ -10,7 +10,9 @@ type Section struct {
 	IsAttacked          bool
 }
 
-func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
+// Returns a slice of sections since as vaults age they may cascade into
+// multiple sections.
+func newSection(prefix Prefix, vaults map[*Vault]bool) []*Section {
 	s := Section{
 		Prefix: prefix,
 		Vaults: map[*Vault]bool{},
@@ -20,10 +22,40 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
 		// increment the age
 		v.IncrementAge()
 		// add to section
-		s.addVault(v)
+		v.SetPrefix(s.Prefix)
+		s.Vaults[v] = true
+		// track hypothetical future section
+		if v.IsAdult {
+			s.TotalAdults = s.TotalAdults + 1
+			leftPrefix := s.Prefix.extendLeft()
+			if leftPrefix.Matches(v.Name) {
+				s.LeftTotalAdults = s.LeftTotalAdults + 1
+			} else {
+				s.RightTotalAdults = s.RightTotalAdults + 1
+			}
+		}
 	}
-	// set total attacked elders now that all vaults are populated
-	// because elder status depends on all other vaults
+	// split into two sections if needed
+	if s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize {
+		leftPrefix := s.Prefix.extendLeft()
+		rightPrefix := s.Prefix.extendRight()
+		left := map[*Vault]bool{}
+		right := map[*Vault]bool{}
+		for v := range s.Vaults {
+			if leftPrefix.Matches(v.Name) {
+				left[v] = true
+			} else {
+				right[v] = true
+			}
+		}
+		s1 := newSection(leftPrefix, left)
+		s2 := newSection(rightPrefix, right)
+		sections := []*Section{}
+		sections = append(sections, s1...)
+		sections = append(sections, s2...)
+		return sections
+	}
+	// track attacking elder stats
 	for v := range s.Vaults {
 		if v.IsAttacker {
 			if s.VaultIsElder(v) {
@@ -31,15 +63,16 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
 			}
 		}
 	}
-	// set stats
+	// track attack
 	s.checkIfAttacked()
-	return &s
+	// return the section
+	return []*Section{&s}
 }
 
 func (s *Section) addVault(v *Vault) []*Section {
 	v.SetPrefix(s.Prefix)
 	s.Vaults[v] = true
-	// track hypothetical future group
+	// track hypothetical future section
 	if v.IsAdult {
 		s.TotalAdults = s.TotalAdults + 1
 		leftPrefix := s.Prefix.extendLeft()
@@ -49,7 +82,7 @@ func (s *Section) addVault(v *Vault) []*Section {
 			s.RightTotalAdults = s.RightTotalAdults + 1
 		}
 	}
-	// split into two groups if needed
+	// split into two sections if needed
 	// details are handled by network upon returning two new sections
 	if s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize {
 		leftPrefix := s.Prefix.extendLeft()
@@ -65,7 +98,10 @@ func (s *Section) addVault(v *Vault) []*Section {
 		}
 		s1 := newSection(leftPrefix, left)
 		s2 := newSection(rightPrefix, right)
-		return []*Section{s1, s2}
+		sections := []*Section{}
+		sections = append(sections, s1...)
+		sections = append(sections, s2...)
+		return sections
 	}
 	// track attacking elder stats
 	if v.IsAttacker {
