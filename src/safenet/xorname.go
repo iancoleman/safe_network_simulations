@@ -22,15 +22,3 @@ func (x XorName) BinaryString() string {
 	}
 	return s
 }
-
-// XorNames are compared by their reverse-byte-order
-// so the order is independent of the prefix.
-func (x XorName) IsBefore(y XorName) bool {
-	for i := len(x) - 1; i >= 0; i-- {
-		if x[i] == y[i] {
-			continue
-		}
-		return x[i] < y[i]
-	}
-	return false
-}

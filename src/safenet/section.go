@@ -43,6 +43,9 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
 			s.TotalAdults = s.TotalAdults + 1
 		}
 	}
+	// set target vault
+	s.setRandomTargetVault()
+	// set stats
 	s.checkIfAttacked()
 	return &s
 }
@@ -81,9 +84,7 @@ func (s *Section) addVault(v *Vault) []*Section {
 		return []*Section{s1, s2}
 	}
 	// set target vault
-	if s.TargetVault == nil || v.Name.IsBefore(s.TargetVault.Name) {
-		s.TargetVault = v
-	}
+	s.setRandomTargetVault()
 	// no split so return zero new sections
 	return []*Section{}
 }
@@ -106,23 +107,28 @@ func (s *Section) removeVault(v *Vault) {
 		s.TotalAttackedVaults = s.TotalAttackedVaults - 1
 		s.checkIfAttacked()
 	}
-	// set new target vault if needed
-	if v == s.TargetVault {
-		s.setNewTargetVault()
-	}
+	// set new target vault
+	s.setRandomTargetVault()
 	// merge is handled by network
 }
 
-func (s *Section) setNewTargetVault() {
+func (s *Section) setRandomTargetVault() {
+	testBytes := NewXorName()
+	smallestDiff := 0
 	isFirst := true
 	for v := range s.Vaults {
-		if isFirst {
-			s.TargetVault = v
-			isFirst = false
-		} else {
-			if v.Name.IsBefore(s.TargetVault.Name) {
-				s.TargetVault = v
+		diff := 0
+		for i := len(v.Name) - 1; i >= 0; i-- {
+			if testBytes[i] > v.Name[i] {
+				diff = diff + int(testBytes[i]-v.Name[i])
+			} else {
+				diff = diff + int(v.Name[i]-testBytes[i])
 			}
+		}
+		if isFirst || diff < smallestDiff {
+			s.TargetVault = v
+			smallestDiff = diff
+			isFirst = false
 		}
 	}
 }
