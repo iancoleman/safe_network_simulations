@@ -29,6 +29,9 @@ func main() {
 		// create new vault
 		v := safenet.NewVault()
 		network.AddVault(v)
+		// relocate existing vault
+		v = network.GetRandomVault()
+		network.RelocateVault(v)
 		// remove existing vault
 		if i >= netsize {
 			v := network.GetRandomVault()

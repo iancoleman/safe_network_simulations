@@ -23,6 +23,7 @@ type Network struct {
 	TotalSectionEvents int
 	TotalJoins         int
 	TotalDepartures    int
+	TotalRelocations   int
 }
 
 func NewNetwork() Network {
@@ -67,6 +68,20 @@ func (n *Network) AddVault(v *Vault) {
 		n.TotalSections = n.TotalSections - 1
 	}
 	n.updateTargetSection()
+}
+
+func (n *Network) RelocateVault(v *Vault) {
+	// track stats
+	n.TotalRelocations = n.TotalRelocations + 1
+	v.IncrementAge()
+	if n.TotalSections > 1 {
+		// remove from current section
+		n.RemoveVault(v)
+		// rename it to give a new location on the network
+		v.Rename()
+		// add to appropriate section
+		n.AddVault(v)
+	}
 }
 
 func (n *Network) RemoveVault(v *Vault) {
