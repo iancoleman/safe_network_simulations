@@ -2,12 +2,15 @@ package safenet
 
 import (
 	"fmt"
+	"math/rand"
 )
 
 const GroupSize = 8
 const SplitBuffer = 3
 const QuorumSize = 5
 const SplitSize = GroupSize + SplitBuffer
+
+var prng = rand.New(rand.NewSource(0))
 
 type Network struct {
 	Sections           map[string]*Section
@@ -26,6 +29,11 @@ func NewNetwork() Network {
 	return Network{
 		Sections: map[string]*Section{},
 	}
+}
+
+func NewNetworkFromSeed(seed int64) Network {
+	prng = rand.New(rand.NewSource(seed))
+	return NewNetwork()
 }
 
 func (n *Network) AddVault(v *Vault) {

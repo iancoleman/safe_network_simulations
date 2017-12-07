@@ -2,12 +2,7 @@ package safenet
 
 import (
 	"fmt"
-	"math/rand"
 )
-
-const seed = 0
-
-var prng = rand.New(rand.NewSource(seed))
 
 type XorName []byte
 
