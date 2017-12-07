@@ -2,13 +2,14 @@ package safenet
 
 type Section struct {
 	Prefix              Prefix
-	TotalVaults         int
+	TotalVaults         uint
 	Vaults              map[*Vault]bool
-	LeftTotalVaults     int
-	RightTotalVaults    int
+	LeftTotalVaults     uint
+	RightTotalVaults    uint
 	TargetVault         *Vault
-	TotalAttackedVaults int
+	TotalAttackedVaults uint
 	IsAttacked          bool
+	TotalAdults         uint
 }
 
 func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
@@ -40,6 +41,12 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
 			if v.Name.IsBefore(s.TargetVault.Name) {
 				s.TargetVault = v
 			}
+		}
+		// increment the age
+		v.IncrementAge()
+		// track adults
+		if v.IsAdult() {
+			s.TotalAdults = s.TotalAdults + 1
 		}
 	}
 	s.checkIfAttacked()
