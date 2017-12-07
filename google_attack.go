@@ -27,16 +27,11 @@ func main() {
 			progress := int(float64(i) / float64(totalEvents) * 100.0)
 			fmt.Print("   ", progress, "%\r")
 		}
-		// create new vault
-		v := safenet.NewVault()
-		network.AddVault(v)
-		// remove existing vault
-		if i >= netsize {
+		// create a new vault or relocate an existing one
+		network.AddOrRelocateVault()
+		// remove existing vaults until network is back to capacity
+		for network.TotalVaults > netsize {
 			v := network.GetRandomVault()
-			if v == nil {
-				fmt.Println("Warning: No vault for GetRandomVault")
-				continue
-			}
 			network.RemoveVault(v)
 		}
 	}
@@ -44,21 +39,33 @@ func main() {
 	fmt.Println(network.TotalVaults, "vaults before attack")
 	// atack the network until the attacker owns a section
 	attackVaultCount := 0
-	ownsSection := false
-	for !ownsSection {
-		v := safenet.NewVault()
-		v.IsAttacker = true
-		network.AddVault(v)
-		attackVaultCount = attackVaultCount + 1
+	for true {
 		// logging
 		if attackVaultCount%1000 == 0 {
-			fmt.Print(attackVaultCount, "attacking vaults added\r")
+			fmt.Print(attackVaultCount, " attacking vaults added\r")
 		}
+		// add an attacking vault
+		a := safenet.NewVault()
+		a.IsAttacker = true
+		network.AddVault(a)
+		attackVaultCount = attackVaultCount + 1
 		// check if attack has worked
-		s := network.Sections[v.Prefix.Key]
+		s := network.Sections[a.Prefix.Key]
 		if s.IsAttacked {
-			ownsSection = true
+			break
 		}
+		// add one normal vault
+		v := safenet.NewVault()
+		network.AddVault(v)
+		// relocate an existing vault
+		r := network.GetRandomVault()
+		network.RelocateVault(r)
+		// remove a non-attacking vault
+		e := network.GetRandomVault()
+		for e.IsAttacker {
+			e = network.GetRandomVault()
+		}
+		network.RemoveVault(e)
 		// TODO edge case: if section just split it may have
 		// caused the sibling section to be attacked so
 		// should check the sibling section

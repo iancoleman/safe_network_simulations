@@ -14,7 +14,6 @@ var prng = rand.New(rand.NewSource(0))
 
 type Network struct {
 	Sections           map[string]*Section
-	TargetPrefix       Prefix
 	TotalVaults        int
 	TotalSections      int
 	TotalMerges        int
@@ -67,12 +66,12 @@ func (n *Network) AddVault(v *Vault) {
 		delete(n.Sections, section.Prefix.Key)
 		n.TotalSections = n.TotalSections - 1
 	}
-	n.updateTargetSection()
 }
 
 func (n *Network) RelocateVault(v *Vault) {
 	// track stats
 	n.TotalRelocations = n.TotalRelocations + 1
+	n.TotalVaultEvents = n.TotalVaultEvents + 1
 	v.IncrementAge()
 	if n.TotalSections > 1 {
 		// remove from current section
@@ -81,6 +80,18 @@ func (n *Network) RelocateVault(v *Vault) {
 		v.Rename()
 		// add to appropriate section
 		n.AddVault(v)
+	}
+}
+
+func (n *Network) AddOrRelocateVault() {
+	if prng.Float32() < 0.9 {
+		v := NewVault()
+		n.AddVault(v)
+	} else {
+		v := n.GetRandomVault()
+		if v != nil {
+			n.RelocateVault(v)
+		}
 	}
 }
 
@@ -96,7 +107,7 @@ func (n *Network) RemoveVault(v *Vault) {
 	// remove the vault from the section
 	section.removeVault(v)
 	// merge if needed
-	if section.TotalVaults < GroupSize {
+	if section.TotalAdults < GroupSize && n.TotalSections > 1 {
 		n.TotalMerges = n.TotalMerges + 1
 		n.TotalSectionEvents = n.TotalSectionEvents + 1
 		parentPrefix := section.Prefix.parent()
@@ -134,20 +145,25 @@ func (n *Network) RemoveVault(v *Vault) {
 		n.Sections[s.Prefix.Key] = s
 		n.TotalSections = n.TotalSections + 1
 	}
-	n.updateTargetSection()
 }
 
 func (n *Network) GetRandomVault() *Vault {
-	return n.Sections[n.TargetPrefix.Key].TargetVault
-}
-
-// Sets the target section to a new section
-// by generating a new random xorname and setting the
-// prefix for that new name as the target section
-func (n *Network) updateTargetSection() {
 	x := NewXorName()
-	prefix := n.getPrefixForXorname(x)
-	n.TargetPrefix = prefix
+	p := n.getPrefixForXorname(x)
+	s, exists := n.Sections[p.Key]
+	if !exists {
+		return nil
+	}
+	var min XorDistance
+	var target *Vault
+	for v := range s.Vaults {
+		d := v.Name.XorDistanceTo(x)
+		if min.IsZeroValue() || d.IsLessThan(min) {
+			min = d
+			target = v
+		}
+	}
+	return target
 }
 
 func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {

@@ -2,49 +2,35 @@ package safenet
 
 type Section struct {
 	Prefix              Prefix
-	TotalVaults         uint
+	TotalAdults         uint
 	Vaults              map[*Vault]bool
 	LeftTotalAdults     uint
 	RightTotalAdults    uint
-	TargetVault         *Vault
-	TotalAttackedVaults uint
+	TotalAttackedElders uint
 	IsAttacked          bool
-	TotalAdults         uint
 }
 
 func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
 	s := Section{
-		Prefix:      prefix,
-		TotalVaults: 0,
-		Vaults:      vaults,
+		Prefix: prefix,
+		Vaults: map[*Vault]bool{},
 	}
-	// update each vault for new section data
-	leftPrefix := prefix.extendLeft()
+	// add each existing vault for new section data
 	for v := range vaults {
-		s.TotalVaults = s.TotalVaults + 1
-		// set new prefix for vault
-		v.SetPrefix(prefix)
-		// track attack
-		if v.IsAttacker {
-			s.TotalAttackedVaults = s.TotalAttackedVaults + 1
-		}
-		// track hypothetical future groups
-		if v.IsAdult {
-			if leftPrefix.Matches(v.Name) {
-				s.LeftTotalAdults = s.LeftTotalAdults + 1
-			} else {
-				s.RightTotalAdults = s.RightTotalAdults + 1
-			}
-		}
 		// increment the age
 		v.IncrementAge()
-		// track adults
-		if v.IsAdult {
-			s.TotalAdults = s.TotalAdults + 1
+		// add to section
+		s.addVault(v)
+	}
+	// set total attacked elders now that all vaults are populated
+	// because elder status depends on all other vaults
+	for v := range s.Vaults {
+		if v.IsAttacker {
+			if s.VaultIsElder(v) {
+				s.TotalAttackedElders = s.TotalAttackedElders + 1
+			}
 		}
 	}
-	// set target vault
-	s.setRandomTargetVault()
 	// set stats
 	s.checkIfAttacked()
 	return &s
@@ -53,22 +39,21 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
 func (s *Section) addVault(v *Vault) []*Section {
 	v.SetPrefix(s.Prefix)
 	s.Vaults[v] = true
-	s.TotalVaults = s.TotalVaults + 1
-	// track attack
-	if v.IsAttacker {
-		s.TotalAttackedVaults = s.TotalAttackedVaults + 1
-	}
-	s.checkIfAttacked()
 	// track hypothetical future group
-	leftPrefix := s.Prefix.extendLeft()
-	if leftPrefix.Matches(v.Name) {
-		s.LeftTotalAdults = s.LeftTotalAdults + 1
-	} else {
-		s.RightTotalAdults = s.RightTotalAdults + 1
+	if v.IsAdult {
+		s.TotalAdults = s.TotalAdults + 1
+		leftPrefix := s.Prefix.extendLeft()
+		if leftPrefix.Matches(v.Name) {
+			s.LeftTotalAdults = s.LeftTotalAdults + 1
+		} else {
+			s.RightTotalAdults = s.RightTotalAdults + 1
+		}
 	}
 	// split into two groups if needed
 	// details are handled by network upon returning two new sections
 	if s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize {
+		leftPrefix := s.Prefix.extendLeft()
+		rightPrefix := s.Prefix.extendRight()
 		left := map[*Vault]bool{}
 		right := map[*Vault]bool{}
 		for v := range s.Vaults {
@@ -79,23 +64,36 @@ func (s *Section) addVault(v *Vault) []*Section {
 			}
 		}
 		s1 := newSection(leftPrefix, left)
-		rightPrefix := s.Prefix.extendRight()
 		s2 := newSection(rightPrefix, right)
 		return []*Section{s1, s2}
 	}
-	// set target vault
-	s.setRandomTargetVault()
+	// track attacking elder stats
+	if v.IsAttacker {
+		if s.VaultIsElder(v) {
+			s.TotalAttackedElders = s.TotalAttackedElders + 1
+		}
+	}
+	// track attack
+	s.checkIfAttacked()
 	// no split so return zero new sections
 	return []*Section{}
 }
 
 func (s *Section) removeVault(v *Vault) {
+	// track attacking elder stats
+	if v.IsAttacker {
+		if s.VaultIsElder(v) {
+			s.TotalAttackedElders = s.TotalAttackedElders - 1
+		}
+	}
 	// remove from section
-	s.TotalVaults = s.TotalVaults - 1
 	delete(s.Vaults, v)
 	// track hypothetical future section
-	leftPrefix := s.Prefix.extendLeft()
 	if v.IsAdult {
+		if s.TotalAdults > 0 {
+			s.TotalAdults = s.TotalAdults - 1
+		}
+		leftPrefix := s.Prefix.extendLeft()
 		if leftPrefix.Matches(v.Name) {
 			s.LeftTotalAdults = s.LeftTotalAdults - 1
 		} else {
@@ -103,38 +101,32 @@ func (s *Section) removeVault(v *Vault) {
 		}
 	}
 	// track attack
-	if v.IsAttacker {
-		s.TotalAttackedVaults = s.TotalAttackedVaults - 1
-		s.checkIfAttacked()
-	}
-	// set new target vault
-	s.setRandomTargetVault()
+	s.checkIfAttacked()
 	// merge is handled by network
 }
 
-func (s *Section) setRandomTargetVault() {
-	testBytes := NewXorName()
-	smallestDiff := 0
-	isFirst := true
-	for v := range s.Vaults {
-		diff := 0
-		for i := len(v.Name) - 1; i >= 0; i-- {
-			if testBytes[i] > v.Name[i] {
-				diff = diff + int(testBytes[i]-v.Name[i])
-			} else {
-				diff = diff + int(v.Name[i]-testBytes[i])
+// The oldest GroupSize (8) adults are elders
+func (s *Section) VaultIsElder(v *Vault) bool {
+	if !v.IsAdult {
+		return false
+	}
+	olderAdults := 0
+	for sv := range s.Vaults {
+		if sv.IsAdult {
+			if sv.Age > v.Age {
+				olderAdults = olderAdults + 1
+			} else if sv.Age == v.Age {
+				// TODO xorname tiebreaker for elder status
 			}
 		}
-		if isFirst || diff < smallestDiff {
-			s.TargetVault = v
-			smallestDiff = diff
-			isFirst = false
+		if olderAdults >= GroupSize {
+			return false
 		}
 	}
+	return true
 }
 
 func (s *Section) checkIfAttacked() {
-	attackPct := float64(s.TotalAttackedVaults) / float64(s.TotalVaults)
-	quorumPct := float64(QuorumSize) / float64(GroupSize)
-	s.IsAttacked = attackPct >= quorumPct
+	// check if enough elders to control quorum
+	s.IsAttacked = s.TotalAttackedElders > QuorumSize
 }

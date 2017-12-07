@@ -22,3 +22,14 @@ func (x XorName) BinaryString() string {
 	}
 	return s
 }
+
+func (x XorName) XorDistanceTo(y XorName) XorDistance {
+	d := XorDistance{}
+	if len(x) != len(y) {
+		fmt.Println("Warning: xordistance for mismatched lengths")
+	}
+	for i := 0; i < len(x); i++ {
+		d = append(d, x[i]^y[i])
+	}
+	return d
+}
