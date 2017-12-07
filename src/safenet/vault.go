@@ -5,6 +5,7 @@ type Vault struct {
 	Prefix     Prefix
 	Age        uint
 	IsAttacker bool
+	IsAdult    bool
 }
 
 func NewVault() *Vault {
@@ -19,8 +20,13 @@ func (v *Vault) SetPrefix(p Prefix) {
 
 func (v *Vault) IncrementAge() {
 	v.Age = v.Age + 1
+	if v.Age > 4 {
+		v.IsAdult = true
+	} else {
+		v.IsAdult = false
+	}
 }
 
-func (v *Vault) IsAdult() bool {
-	return v.Age > 4
+func (v *Vault) Rename() {
+	v.Name = NewXorName()
 }

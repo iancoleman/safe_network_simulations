@@ -57,7 +57,7 @@ func main() {
 			}
 			ageCount[age] = ageCount[age] + 1
 			// track category
-			if v.IsAdult() {
+			if v.IsAdult {
 				adults = adults + 1
 			} else {
 				children = children + 1

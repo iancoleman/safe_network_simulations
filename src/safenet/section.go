@@ -4,8 +4,8 @@ type Section struct {
 	Prefix              Prefix
 	TotalVaults         uint
 	Vaults              map[*Vault]bool
-	LeftTotalVaults     uint
-	RightTotalVaults    uint
+	LeftTotalAdults     uint
+	RightTotalAdults    uint
 	TargetVault         *Vault
 	TotalAttackedVaults uint
 	IsAttacked          bool
@@ -29,23 +29,17 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) *Section {
 			s.TotalAttackedVaults = s.TotalAttackedVaults + 1
 		}
 		// track hypothetical future groups
-		if leftPrefix.Matches(v.Name) {
-			s.LeftTotalVaults = s.LeftTotalVaults + 1
-		} else {
-			s.RightTotalVaults = s.RightTotalVaults + 1
-		}
-		// set target vault if is smallest
-		if s.TotalVaults == 1 {
-			s.TargetVault = v
-		} else {
-			if v.Name.IsBefore(s.TargetVault.Name) {
-				s.TargetVault = v
+		if v.IsAdult {
+			if leftPrefix.Matches(v.Name) {
+				s.LeftTotalAdults = s.LeftTotalAdults + 1
+			} else {
+				s.RightTotalAdults = s.RightTotalAdults + 1
 			}
 		}
 		// increment the age
 		v.IncrementAge()
 		// track adults
-		if v.IsAdult() {
+		if v.IsAdult {
 			s.TotalAdults = s.TotalAdults + 1
 		}
 	}
@@ -65,13 +59,13 @@ func (s *Section) addVault(v *Vault) []*Section {
 	// track hypothetical future group
 	leftPrefix := s.Prefix.extendLeft()
 	if leftPrefix.Matches(v.Name) {
-		s.LeftTotalVaults = s.LeftTotalVaults + 1
+		s.LeftTotalAdults = s.LeftTotalAdults + 1
 	} else {
-		s.RightTotalVaults = s.RightTotalVaults + 1
+		s.RightTotalAdults = s.RightTotalAdults + 1
 	}
 	// split into two groups if needed
 	// details are handled by network upon returning two new sections
-	if s.LeftTotalVaults >= SplitSize && s.RightTotalVaults >= SplitSize {
+	if s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize {
 		left := map[*Vault]bool{}
 		right := map[*Vault]bool{}
 		for v := range s.Vaults {
@@ -100,10 +94,12 @@ func (s *Section) removeVault(v *Vault) {
 	delete(s.Vaults, v)
 	// track hypothetical future section
 	leftPrefix := s.Prefix.extendLeft()
-	if leftPrefix.Matches(v.Name) {
-		s.LeftTotalVaults = s.LeftTotalVaults - 1
-	} else {
-		s.RightTotalVaults = s.RightTotalVaults - 1
+	if v.IsAdult {
+		if leftPrefix.Matches(v.Name) {
+			s.LeftTotalAdults = s.LeftTotalAdults - 1
+		} else {
+			s.RightTotalAdults = s.RightTotalAdults - 1
+		}
 	}
 	// track attack
 	if v.IsAttacker {
