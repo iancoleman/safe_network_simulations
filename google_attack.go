@@ -1,13 +1,22 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"safenet"
 )
 
 func main() {
-	network := safenet.NewNetwork()
-	netsize := 10000000
+	// get user variables
+	var seedPtr *int64
+	seedPtr = flag.Int64("seed", 0, "seed for the prng")
+	var netsizePtr *int
+	netsizePtr = flag.Int("netsize", 100000, "number of vaults in the final network")
+	flag.Parse()
+	seed := *seedPtr
+	netsize := *netsizePtr
+	// create network
+	network := safenet.NewNetworkFromSeed(seed)
 	totalEvents := netsize * 5
 	pctStep := totalEvents / 100
 	// Create initial network

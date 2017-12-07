@@ -1,14 +1,23 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"safenet"
 	"sort"
 )
 
 func main() {
-	network := safenet.NewNetwork()
-	netsize := 100000
+	// get user variables
+	var seedPtr *int64
+	seedPtr = flag.Int64("seed", 0, "seed for the prng")
+	var netsizePtr *int
+	netsizePtr = flag.Int("netsize", 100000, "number of vaults in the final network")
+	flag.Parse()
+	seed := *seedPtr
+	netsize := *netsizePtr
+	// create network
+	network := safenet.NewNetworkFromSeed(seed)
 	totalEvents := netsize * 5
 	pctStep := totalEvents / 100
 	for i := 0; i < totalEvents; i++ {
@@ -32,21 +41,21 @@ func main() {
 	}
 	fmt.Println("   100%\n")
 	// report
-	sizes := map[int]int{}
+	sizes := map[int]uint{}
 	sizeKeys := []int{}
 	for _, s := range network.Sections {
-		i := s.TotalVaults
-		_, exists := sizes[i]
+		size := int(s.TotalVaults)
+		_, exists := sizes[size]
 		if !exists {
-			sizes[i] = 0
-			sizeKeys = append(sizeKeys, i)
+			sizes[size] = 0
+			sizeKeys = append(sizeKeys, size)
 		}
-		sizes[i] = sizes[i] + 1
+		sizes[size] = sizes[size] + 1
 	}
 	fmt.Println("size", "count")
 	sort.Sort(sort.IntSlice(sizeKeys))
-	for _, i := range sizeKeys {
-		fmt.Println(i, sizes[i])
+	for _, size := range sizeKeys {
+		fmt.Println(size, sizes[size])
 	}
 	fmt.Println()
 	fmt.Println(network.TotalVaults, "total vaults")
