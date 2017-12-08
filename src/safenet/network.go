@@ -146,19 +146,21 @@ func (n *Network) RemoveVault(v *Vault) {
 }
 
 func (n *Network) GetRandomVault() *Vault {
-	x := NewXorName()
-	p := n.getPrefixForXorname(x)
-	s, exists := n.Sections[p.Key]
-	if !exists {
-		return nil
-	}
-	var min XorDistance
 	var target *Vault
-	for v := range s.Vaults {
-		d := v.Name.XorDistanceTo(x)
-		if min.IsZeroValue() || d.IsLessThan(min) {
-			min = d
-			target = v
+	for target == nil {
+		x := NewXorName()
+		p := n.getPrefixForXorname(x)
+		s, exists := n.Sections[p.Key]
+		if !exists {
+			continue
+		}
+		var min XorDistance
+		for v := range s.Vaults {
+			d := v.Name.XorDistanceTo(x)
+			if min.IsZeroValue() || d.IsLessThan(min) {
+				min = d
+				target = v
+			}
 		}
 	}
 	return target
