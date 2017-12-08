@@ -3,7 +3,7 @@ package safenet
 type Section struct {
 	Prefix              Prefix
 	TotalAdults         uint
-	Vaults              map[*Vault]bool
+	Vaults              []*Vault
 	LeftTotalAdults     uint
 	RightTotalAdults    uint
 	TotalAttackedElders uint
@@ -12,18 +12,18 @@ type Section struct {
 
 // Returns a slice of sections since as vaults age they may cascade into
 // multiple sections.
-func newSection(prefix Prefix, vaults map[*Vault]bool) []*Section {
+func newSection(prefix Prefix, vaults []*Vault) []*Section {
 	s := Section{
 		Prefix: prefix,
-		Vaults: map[*Vault]bool{},
+		Vaults: []*Vault{},
 	}
 	// add each existing vault for new section data
-	for v := range vaults {
+	for _, v := range vaults {
 		// increment the age
 		v.IncrementAge()
 		// add to section
 		v.SetPrefix(s.Prefix)
-		s.Vaults[v] = true
+		s.Vaults = append(s.Vaults, v)
 		// track hypothetical future section
 		if v.IsAdult {
 			s.TotalAdults = s.TotalAdults + 1
@@ -36,16 +36,16 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) []*Section {
 		}
 	}
 	// split into two sections if needed
-	if s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize {
+	if s.shouldSplit() {
 		leftPrefix := s.Prefix.extendLeft()
 		rightPrefix := s.Prefix.extendRight()
-		left := map[*Vault]bool{}
-		right := map[*Vault]bool{}
-		for v := range s.Vaults {
+		left := []*Vault{}
+		right := []*Vault{}
+		for _, v := range s.Vaults {
 			if leftPrefix.Matches(v.Name) {
-				left[v] = true
+				left = append(left, v)
 			} else {
-				right[v] = true
+				right = append(right, v)
 			}
 		}
 		s1 := newSection(leftPrefix, left)
@@ -56,7 +56,7 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) []*Section {
 		return sections
 	}
 	// track attacking elder stats
-	for v := range s.Vaults {
+	for _, v := range s.Vaults {
 		if v.IsAttacker {
 			if s.VaultIsElder(v) {
 				s.TotalAttackedElders = s.TotalAttackedElders + 1
@@ -69,9 +69,13 @@ func newSection(prefix Prefix, vaults map[*Vault]bool) []*Section {
 	return []*Section{&s}
 }
 
+func (s *Section) shouldSplit() bool {
+	return s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize
+}
+
 func (s *Section) addVault(v *Vault) []*Section {
 	v.SetPrefix(s.Prefix)
-	s.Vaults[v] = true
+	s.Vaults = append(s.Vaults, v)
 	// track hypothetical future section
 	if v.IsAdult {
 		s.TotalAdults = s.TotalAdults + 1
@@ -84,16 +88,16 @@ func (s *Section) addVault(v *Vault) []*Section {
 	}
 	// split into two sections if needed
 	// details are handled by network upon returning two new sections
-	if s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize {
+	if s.shouldSplit() {
 		leftPrefix := s.Prefix.extendLeft()
 		rightPrefix := s.Prefix.extendRight()
-		left := map[*Vault]bool{}
-		right := map[*Vault]bool{}
-		for v := range s.Vaults {
+		left := []*Vault{}
+		right := []*Vault{}
+		for _, v := range s.Vaults {
 			if leftPrefix.Matches(v.Name) {
-				left[v] = true
+				left = append(left, v)
 			} else {
-				right[v] = true
+				right = append(right, v)
 			}
 		}
 		s1 := newSection(leftPrefix, left)
@@ -123,7 +127,12 @@ func (s *Section) removeVault(v *Vault) {
 		}
 	}
 	// remove from section
-	delete(s.Vaults, v)
+	for i, vault := range s.Vaults {
+		if vault == v {
+			s.Vaults = append(s.Vaults[:i], s.Vaults[i+1:]...)
+			break
+		}
+	}
 	// track hypothetical future section
 	if v.IsAdult {
 		if s.TotalAdults > 0 {
@@ -147,7 +156,7 @@ func (s *Section) VaultIsElder(v *Vault) bool {
 		return false
 	}
 	olderAdults := 0
-	for sv := range s.Vaults {
+	for _, sv := range s.Vaults {
 		if sv.IsAdult {
 			if sv.Age > v.Age {
 				olderAdults = olderAdults + 1

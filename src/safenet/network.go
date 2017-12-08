@@ -47,7 +47,7 @@ func (n *Network) AddVault(v *Vault) {
 	// get the section for this prefix
 	if !exists {
 		blankPrefix := NewBlankPrefix()
-		sections := newSection(blankPrefix, map[*Vault]bool{})
+		sections := newSection(blankPrefix, []*Vault{})
 		for _, section = range sections {
 			n.Sections[section.Prefix.Key] = section
 			n.TotalSections = n.TotalSections + 1
@@ -88,7 +88,7 @@ func (n *Network) RelocateVault(v *Vault) {
 			v.Rename()
 			newPrefix = n.getPrefixForXorname(v.Name)
 		}
-		if collisions > 1 {
+		if collisions > 2 {
 			fmt.Println("Warning: many prefix collisions during vault relocation:", collisions)
 		}
 		// add to appropriate section
@@ -120,9 +120,7 @@ func (n *Network) RemoveVault(v *Vault) {
 		if exists {
 			// merge sibling
 			siblingVaults := n.Sections[siblingPrefix.Key].Vaults
-			for v := range siblingVaults {
-				parentVaults[v] = true
-			}
+			parentVaults = append(parentVaults, siblingVaults...)
 			delete(n.Sections, siblingPrefix.Key)
 			n.TotalSections = n.TotalSections - 1
 		} else {
@@ -131,9 +129,7 @@ func (n *Network) RemoveVault(v *Vault) {
 			for _, childPrefix := range childPrefixes {
 				// merge child vault
 				childVaults := n.Sections[childPrefix.Key].Vaults
-				for v := range childVaults {
-					parentVaults[v] = true
-				}
+				parentVaults = append(parentVaults, childVaults...)
 				delete(n.Sections, childPrefix.Key)
 				n.TotalSections = n.TotalSections - 1
 			}
@@ -150,35 +146,16 @@ func (n *Network) RemoveVault(v *Vault) {
 	}
 }
 
+// Needs to be deterministic but also random.
+// Iterating over keys of a map is not deterministic
 func (n *Network) GetRandomVault() *Vault {
-	var target *Vault
-	misses := 0
-	for target == nil {
-		// get random section
-		x := NewXorName()
-		p := n.getPrefixForXorname(x)
-		s, exists := n.Sections[p.Key]
-		if !exists {
-			fmt.Println("Warning: no prefix found in GetRandomVault")
-			continue
-		}
-		// get random vault from section
-		var min XorDistance
-		for v := range s.Vaults {
-			d := v.Name.XorDistanceTo(x)
-			if min.IsZeroValue() || d.IsLessThan(min) {
-				min = d
-				target = v
-			}
-		}
-		if target == nil {
-			misses = misses + 1
-		}
-	}
-	if misses > 0 {
-		fmt.Println("Warning: encountered misses during GetRandomVault:", misses)
-	}
-	return target
+	// get random section
+	x := NewXorName()
+	p := n.getPrefixForXorname(x)
+	s, _ := n.Sections[p.Key]
+	// get random vault from section
+	i := prng.Intn(len(s.Vaults))
+	return s.Vaults[i]
 }
 
 func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
