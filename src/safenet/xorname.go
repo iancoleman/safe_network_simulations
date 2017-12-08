@@ -7,10 +7,11 @@ import (
 type XorName []byte
 
 const xornameBits = 256
+const xornameBytes = xornameBits / 8
 
 func NewXorName() XorName {
 	// create a name from prng
-	name := make([]byte, xornameBits/8)
+	name := make([]byte, xornameBytes)
 	prng.Read(name)
 	return name
 }
