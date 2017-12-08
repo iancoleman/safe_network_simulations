@@ -81,10 +81,15 @@ func (n *Network) RelocateVault(v *Vault) {
 		// rename it to give a new location on the network
 		v.Rename()
 		// prevent relocation to the same section
+		collisions := 0
 		newPrefix := n.getPrefixForXorname(v.Name)
 		for v.Prefix.Equals(newPrefix) {
+			collisions = collisions + 1
 			v.Rename()
 			newPrefix = n.getPrefixForXorname(v.Name)
+		}
+		if collisions > 1 {
+			fmt.Println("Warning: many prefix collisions during vault relocation:", collisions)
 		}
 		// add to appropriate section
 		n.AddVault(v)
@@ -147,13 +152,17 @@ func (n *Network) RemoveVault(v *Vault) {
 
 func (n *Network) GetRandomVault() *Vault {
 	var target *Vault
+	misses := 0
 	for target == nil {
+		// get random section
 		x := NewXorName()
 		p := n.getPrefixForXorname(x)
 		s, exists := n.Sections[p.Key]
 		if !exists {
+			fmt.Println("Warning: no prefix found in GetRandomVault")
 			continue
 		}
+		// get random vault from section
 		var min XorDistance
 		for v := range s.Vaults {
 			d := v.Name.XorDistanceTo(x)
@@ -162,6 +171,12 @@ func (n *Network) GetRandomVault() *Vault {
 				target = v
 			}
 		}
+		if target == nil {
+			misses = misses + 1
+		}
+	}
+	if misses > 0 {
+		fmt.Println("Warning: encountered misses during GetRandomVault:", misses)
 	}
 	return target
 }
