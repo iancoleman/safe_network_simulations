@@ -106,11 +106,11 @@ func (p Prefix) Equals(q Prefix) bool {
 
 func (p Prefix) Matches(x XorName) bool {
 	totalBytes := p.totalBytes()
-	if totalBytes > len(x) {
+	if totalBytes > xornameBytes {
 		return false
 	}
 	for i := 0; i < totalBytes; i++ {
-		xornameByte := x[i]
+		xornameByte := x.ByteAtIndex(i)
 		startBit := i * 8
 		endBit := (i + 1) * 8
 		var thisByte byte

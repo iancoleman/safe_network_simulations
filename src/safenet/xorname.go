@@ -1,10 +1,13 @@
 package safenet
 
 import (
-	"fmt"
+	"math/big"
 )
 
-type XorName []byte
+type XorName struct {
+	bigint *big.Int
+	bytes  []byte
+}
 
 const xornameBits = 256
 const xornameBytes = xornameBits / 8
@@ -13,24 +16,25 @@ func NewXorName() XorName {
 	// create a name from prng
 	name := make([]byte, xornameBytes)
 	prng.Read(name)
-	return name
+	x := XorName{
+		bigint: big.NewInt(0).SetBytes(name),
+		bytes:  name,
+	}
+	return x
 }
 
 func (x XorName) BinaryString() string {
-	s := ""
-	for _, b := range x {
-		s = s + fmt.Sprintf("%08b", b)
+	s := x.bigint.Text(2)
+	for len(s) < xornameBits {
+		s = "0" + s
 	}
 	return s
 }
 
-func (x XorName) XorDistanceTo(y XorName) XorDistance {
-	d := XorDistance{}
-	if len(x) != len(y) {
-		fmt.Println("Warning: xordistance for mismatched lengths")
-	}
-	for i := 0; i < len(x); i++ {
-		d = append(d, x[i]^y[i])
-	}
-	return d
+func (x XorName) IsLessThan(y XorName) bool {
+	return x.bigint.Cmp(y.bigint) == -1
+}
+
+func (x XorName) ByteAtIndex(i int) byte {
+	return x.bytes[i]
 }

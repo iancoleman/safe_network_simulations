@@ -3,9 +3,8 @@ package safenet
 type Vault struct {
 	Name       XorName
 	Prefix     Prefix
-	Age        uint
+	Age        int
 	IsAttacker bool
-	IsAdult    bool
 }
 
 func NewVault() *Vault {
@@ -20,13 +19,20 @@ func (v *Vault) SetPrefix(p Prefix) {
 
 func (v *Vault) IncrementAge() {
 	v.Age = v.Age + 1
-	if v.Age > 4 {
-		v.IsAdult = true
-	} else {
-		v.IsAdult = false
-	}
 }
 
-func (v *Vault) Rename() {
-	v.Name = NewXorName()
+func (v *Vault) IsAdult() bool {
+	return v.Age > 4
+}
+
+type ByAge []*Vault
+
+func (a ByAge) Len() int      { return len(a) }
+func (a ByAge) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByAge) Less(i, j int) bool {
+	// ties in age are resolved by comparing the name itself
+	if a[i].Age == a[j].Age {
+		return a[i].Name.IsLessThan(a[j].Name)
+	}
+	return a[i].Age < a[j].Age
 }

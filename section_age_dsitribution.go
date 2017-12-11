@@ -29,9 +29,6 @@ func main() {
 		// create new vault
 		v := safenet.NewVault()
 		network.AddVault(v)
-		// relocate existing vault
-		v = network.GetRandomVault()
-		network.RelocateVault(v)
 		// remove existing vault
 		if i >= netsize {
 			v := network.GetRandomVault()
@@ -60,7 +57,7 @@ func main() {
 			}
 			ageCount[age] = ageCount[age] + 1
 			// track category
-			if v.IsAdult {
+			if v.IsAdult() {
 				adults = adults + 1
 			} else {
 				children = children + 1

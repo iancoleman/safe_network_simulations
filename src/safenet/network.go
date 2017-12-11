@@ -7,7 +7,8 @@ import (
 
 const GroupSize = 8
 const SplitBuffer = 3
-const QuorumSize = 5
+const QuorumNumerator = 1
+const QuorumDenominator = 2
 const SplitSize = GroupSize + SplitBuffer
 
 var prng = rand.New(rand.NewSource(0))
@@ -47,20 +48,22 @@ func (n *Network) AddVault(v *Vault) {
 	// get the section for this prefix
 	if !exists {
 		blankPrefix := NewBlankPrefix()
-		sections := newSection(blankPrefix, []*Vault{})
-		for _, section = range sections {
-			n.Sections[section.Prefix.Key] = section
-			n.TotalSections = n.TotalSections + 1
+		ne := newSection(blankPrefix, []*Vault{})
+		if ne != nil {
+			for _, section = range ne.NewSections {
+				n.Sections[section.Prefix.Key] = section
+				n.TotalSections = n.TotalSections + 1
+			}
 		}
 	}
 	// add the vault to the section
-	newSections := section.addVault(v)
+	ne := section.addVault(v)
 	// if there was a split
-	if len(newSections) > 0 {
+	if ne != nil && len(ne.NewSections) > 0 {
 		n.TotalSplits = n.TotalSplits + 1
 		n.TotalSectionEvents = n.TotalSectionEvents + 1
 		// add new sections
-		for _, s := range newSections {
+		for _, s := range ne.NewSections {
 			n.Sections[s.Prefix.Key] = s
 			n.TotalSections = n.TotalSections + 1
 		}
@@ -68,31 +71,9 @@ func (n *Network) AddVault(v *Vault) {
 		delete(n.Sections, section.Prefix.Key)
 		n.TotalSections = n.TotalSections - 1
 	}
-}
-
-func (n *Network) RelocateVault(v *Vault) {
-	// track stats
-	n.TotalRelocations = n.TotalRelocations + 1
-	n.TotalVaultEvents = n.TotalVaultEvents + 1
-	v.IncrementAge()
-	if n.TotalSections > 1 {
-		// remove from current section
-		n.RemoveVault(v)
-		// rename it to give a new location on the network
-		v.Rename()
-		// prevent relocation to the same section
-		collisions := 0
-		newPrefix := n.getPrefixForXorname(v.Name)
-		for v.Prefix.Equals(newPrefix) {
-			collisions = collisions + 1
-			v.Rename()
-			newPrefix = n.getPrefixForXorname(v.Name)
-		}
-		if collisions > 2 {
-			fmt.Println("Warning: many prefix collisions during vault relocation:", collisions)
-		}
-		// add to appropriate section
-		n.AddVault(v)
+	// relocate vault if there is one to relocate
+	if ne != nil && ne.VaultToRelocate != nil {
+		n.relocateVault(ne.VaultToRelocate)
 	}
 }
 
@@ -106,7 +87,7 @@ func (n *Network) RemoveVault(v *Vault) {
 		return
 	}
 	// remove the vault from the section
-	section.removeVault(v)
+	ne := section.removeVault(v)
 	// merge if needed
 	if section.TotalAdults < GroupSize && n.TotalSections > 1 {
 		n.TotalMerges = n.TotalMerges + 1
@@ -138,24 +119,40 @@ func (n *Network) RemoveVault(v *Vault) {
 		delete(n.Sections, section.Prefix.Key)
 		n.TotalSections = n.TotalSections - 1
 		// create the new section
-		sections := newSection(parentPrefix, parentVaults)
-		for _, s := range sections {
-			n.Sections[s.Prefix.Key] = s
-			n.TotalSections = n.TotalSections + 1
+		ne := newSection(parentPrefix, parentVaults)
+		if ne != nil {
+			for _, s := range ne.NewSections {
+				n.Sections[s.Prefix.Key] = s
+				n.TotalSections = n.TotalSections + 1
+			}
 		}
 	}
+	// relocate vault if there is one to relocate
+	if ne != nil && ne.VaultToRelocate != nil {
+		n.relocateVault(ne.VaultToRelocate)
+	}
+}
+
+func (n *Network) relocateVault(v *Vault) {
+	v.IncrementAge()
+	n.TotalRelocations = n.TotalRelocations + 1
+	// TODO acutally relocate this vault to neighbour with fewest vaults
+}
+
+func (n *Network) GetRandomSection() *Section {
+	x := NewXorName()
+	p := n.getPrefixForXorname(x)
+	s, _ := n.Sections[p.Key]
+	return s
 }
 
 // Needs to be deterministic but also random.
 // Iterating over keys of a map is not deterministic
 func (n *Network) GetRandomVault() *Vault {
 	// get random section
-	x := NewXorName()
-	p := n.getPrefixForXorname(x)
-	s, _ := n.Sections[p.Key]
+	s := n.GetRandomSection()
 	// get random vault from section
-	i := prng.Intn(len(s.Vaults))
-	return s.Vaults[i]
+	return s.GetRandomVault()
 }
 
 func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
@@ -184,16 +181,16 @@ func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
 func (n *Network) getPrefixForXorname(x XorName) Prefix {
 	prefix := NewBlankPrefix()
 	_, exists := n.Sections[prefix.Key]
-	xornameBitIndex := uint(0)
-	xornameByteIndex := uint(0)
+	xornameBitIndex := 0
+	xornameByteIndex := 0
 	for !exists && len(prefix.id) < xornameBits {
 		// get the next bit of the xorname prefix
 		xornameByteIndex = xornameBitIndex / 8
-		maskBitIndex := xornameBitIndex % 8
+		maskBitIndex := uint(xornameBitIndex % 8)
 		maskByte := byte(0x80) >> maskBitIndex
 		// AND the byte with the mask to give 0 if the bit is 0 or maskByte if
 		// it's 1
-		bit := x[xornameByteIndex] & maskByte
+		bit := x.ByteAtIndex(xornameByteIndex) & maskByte
 		// extend the prefix depending on the bit of the xorname
 		if bit == 0 {
 			prefix = prefix.extendLeft()
