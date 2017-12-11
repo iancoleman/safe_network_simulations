@@ -1,6 +1,7 @@
 package safenet
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"sort"
@@ -34,10 +35,13 @@ func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 		if v.IsAdult() {
 			s.TotalAdults = s.TotalAdults + 1
 			leftPrefix := s.Prefix.extendLeft()
+			rightPrefix := s.Prefix.extendRight()
 			if leftPrefix.Matches(v.Name) {
 				s.LeftTotalAdults = s.LeftTotalAdults + 1
-			} else {
+			} else if rightPrefix.Matches(v.Name) {
 				s.RightTotalAdults = s.RightTotalAdults + 1
+			} else {
+				fmt.Println("Warning: newSection has vault not matching extended prefix")
 			}
 		}
 	}
@@ -64,8 +68,10 @@ func (s *Section) split() *NetworkEvent {
 	for _, v := range s.Vaults {
 		if leftPrefix.Matches(v.Name) {
 			left = append(left, v)
-		} else {
+		} else if rightPrefix.Matches(v.Name) {
 			right = append(right, v)
+		} else {
+			fmt.Println("Warning: Split has vault that doesn't match extended prefix")
 		}
 	}
 	ne0 := newSection(leftPrefix, left)
@@ -81,6 +87,10 @@ func (s *Section) shouldSplit() bool {
 	return s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize
 }
 
+func (s *Section) IsComplete() bool {
+	return s.TotalAdults > GroupSize
+}
+
 func (s *Section) addVault(v *Vault) *NetworkEvent {
 	v.SetPrefix(s.Prefix)
 	s.Vaults = append(s.Vaults, v)
@@ -88,10 +98,13 @@ func (s *Section) addVault(v *Vault) *NetworkEvent {
 	if v.IsAdult() {
 		s.TotalAdults = s.TotalAdults + 1
 		leftPrefix := s.Prefix.extendLeft()
+		rightPrefix := s.Prefix.extendRight()
 		if leftPrefix.Matches(v.Name) {
 			s.LeftTotalAdults = s.LeftTotalAdults + 1
-		} else {
+		} else if rightPrefix.Matches(v.Name) {
 			s.RightTotalAdults = s.RightTotalAdults + 1
+		} else {
+			fmt.Println("Warning: addVault does not match extended prefix")
 		}
 	}
 	// split into two sections if needed
@@ -121,10 +134,13 @@ func (s *Section) removeVault(v *Vault) *NetworkEvent {
 			s.TotalAdults = s.TotalAdults - 1
 		}
 		leftPrefix := s.Prefix.extendLeft()
+		rightPrefix := s.Prefix.extendRight()
 		if leftPrefix.Matches(v.Name) {
 			s.LeftTotalAdults = s.LeftTotalAdults - 1
-		} else {
+		} else if rightPrefix.Matches(v.Name) {
 			s.RightTotalAdults = s.RightTotalAdults - 1
+		} else {
+			fmt.Println("Warning: removeVault has vault not matching extended prefix")
 		}
 	}
 	// track elders
@@ -212,7 +228,12 @@ func (s *Section) checkIfAttacked() {
 }
 
 func (s *Section) GetRandomVault() *Vault {
-	i := prng.Intn(len(s.Vaults))
+	totalVaults := len(s.Vaults)
+	if totalVaults == 0 {
+		fmt.Println("Warning: GetRandomVault for section with no vaults")
+		return nil
+	}
+	i := prng.Intn(totalVaults)
 	return s.Vaults[i]
 }
 

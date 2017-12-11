@@ -2,6 +2,7 @@ package safenet
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 )
 
@@ -19,7 +20,6 @@ type Network struct {
 	TotalSections      int
 	TotalMerges        int
 	TotalSplits        int
-	TotalVaultEvents   int
 	TotalSectionEvents int
 	TotalJoins         int
 	TotalDepartures    int
@@ -41,7 +41,6 @@ func (n *Network) AddVault(v *Vault) {
 	// track stats for total vaults
 	n.TotalVaults = n.TotalVaults + 1
 	n.TotalJoins = n.TotalJoins + 1
-	n.TotalVaultEvents = n.TotalVaultEvents + 1
 	// get prefix for vault
 	prefix := n.getPrefixForXorname(v.Name)
 	section, exists := n.Sections[prefix.Key]
@@ -73,21 +72,24 @@ func (n *Network) AddVault(v *Vault) {
 	}
 	// relocate vault if there is one to relocate
 	if ne != nil && ne.VaultToRelocate != nil {
-		n.relocateVault(ne.VaultToRelocate)
+		n.relocateVault(ne)
 	}
 }
 
 func (n *Network) RemoveVault(v *Vault) {
 	n.TotalVaults = n.TotalVaults - 1
 	n.TotalDepartures = n.TotalDepartures + 1
-	n.TotalVaultEvents = n.TotalVaultEvents + 1
 	section, exists := n.Sections[v.Prefix.Key]
 	if !exists {
-		fmt.Println("Warning: No section for removeVault", v.Prefix)
+		fmt.Println("Warning: No section for removeVault")
 		return
 	}
 	// remove the vault from the section
 	ne := section.removeVault(v)
+	// relocate a vault if there is one to relocate
+	if ne != nil && ne.VaultToRelocate != nil {
+		n.relocateVault(ne)
+	}
 	// merge if needed
 	if section.TotalAdults < GroupSize && n.TotalSections > 1 {
 		n.TotalMerges = n.TotalMerges + 1
@@ -127,16 +129,65 @@ func (n *Network) RemoveVault(v *Vault) {
 			}
 		}
 	}
-	// relocate vault if there is one to relocate
-	if ne != nil && ne.VaultToRelocate != nil {
-		n.relocateVault(ne.VaultToRelocate)
-	}
 }
 
-func (n *Network) relocateVault(v *Vault) {
-	v.IncrementAge()
+func (n *Network) relocateVault(ne *NetworkEvent) {
+	ne.VaultToRelocate.IncrementAge()
 	n.TotalRelocations = n.TotalRelocations + 1
-	// TODO acutally relocate this vault to neighbour with fewest vaults
+	// relocate this vault to neighbour with fewest vaults
+	var smallestNeighbour *Section
+	minNeighbourVaults := math.MaxUint32
+	// get all neighbours
+	for i := 0; i < len(ne.VaultToRelocate.Prefix.bits); i++ {
+		// clone the prefix but flip the ith bit of the prefix
+		neighbourPrefix := NewBlankPrefix()
+		for j := 0; j < len(ne.VaultToRelocate.Prefix.bits); j++ {
+			isZero := !ne.VaultToRelocate.Prefix.bits[j]
+			if j == i {
+				isZero = !isZero
+			}
+			if isZero {
+				neighbourPrefix = neighbourPrefix.extendLeft()
+			} else {
+				neighbourPrefix = neighbourPrefix.extendRight()
+			}
+		}
+		// get network prefixes that match this prefix
+		neighbourPrefixes := n.getMatchingPrefixes(neighbourPrefix)
+		// find smallest neighbour
+		for _, p := range neighbourPrefixes {
+			s := n.Sections[p.Key]
+			if len(s.Vaults) < minNeighbourVaults {
+				minNeighbourVaults = len(s.Vaults)
+				smallestNeighbour = s
+			} else if len(s.Vaults) == minNeighbourVaults {
+				// TODO tiebreaker for equal sized neighbours
+				// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
+				// If all neighbours have the same number of peers we relocate
+				// to the section closest to the H above (that is not us)
+			}
+		}
+	}
+	// check neighbour exists
+	if smallestNeighbour != nil {
+		// TODO age should halve for relocation
+		// remove vault from current section
+		oldSection := n.Sections[ne.VaultToRelocate.Prefix.Key]
+		oldSection.removeVault(ne.VaultToRelocate)
+		// adjust vault name to match the neighbour section prefix
+		for i, prefixBit := range smallestNeighbour.Prefix.bits {
+			nameBit := ne.VaultToRelocate.Name.bits[i]
+			if nameBit == false && prefixBit == true {
+				// name is 0 but should be 1
+				ne.VaultToRelocate.Name.SetBit(i, prefixBit)
+			} else if nameBit == true && prefixBit == false {
+				// name is 1 but should be 0
+				ne.VaultToRelocate.Name.SetBit(i, prefixBit)
+			}
+		}
+		// relocate the vault to the smallest neighbour
+		smallestNeighbour.addVault(ne.VaultToRelocate)
+	}
 }
 
 func (n *Network) GetRandomSection() *Section {
@@ -155,6 +206,34 @@ func (n *Network) GetRandomVault() *Vault {
 	return s.GetRandomVault()
 }
 
+// Returns the parent, prefix, or children that matches this prefix on the network
+func (n *Network) getMatchingPrefixes(prefix Prefix) []Prefix {
+	prefixes := []Prefix{}
+	testPrefix := NewBlankPrefix()
+	// find possible parents
+	_, exists := n.Sections[testPrefix.Key]
+	if exists {
+		prefixes = append(prefixes, testPrefix)
+	}
+	for i := 0; i < len(prefix.bits); i++ {
+		if !prefix.bits[i] {
+			testPrefix = testPrefix.extendLeft()
+		} else {
+			testPrefix = testPrefix.extendRight()
+		}
+		_, exists := n.Sections[testPrefix.Key]
+		if exists {
+			prefixes = append(prefixes, testPrefix)
+			// TODO can probably break here?
+		}
+	}
+	// get child prefixes if no parent found
+	if len(prefixes) == 0 {
+		prefixes = n.getChildPrefixes(prefix)
+	}
+	return prefixes
+}
+
 func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
 	prefixes := []Prefix{}
 	leftPrefix := prefix.extendLeft()
@@ -169,7 +248,7 @@ func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
 	} else if rightExists {
 		prefixes = append(prefixes, rightPrefix)
 		prefixes = append(prefixes, n.getChildPrefixes(leftPrefix)...)
-	} else if len(prefix.id) < 256 {
+	} else if len(prefix.bits) < 256 {
 		prefixes = append(prefixes, n.getChildPrefixes(leftPrefix)...)
 		prefixes = append(prefixes, n.getChildPrefixes(rightPrefix)...)
 	} else {
@@ -181,25 +260,16 @@ func (n *Network) getChildPrefixes(prefix Prefix) []Prefix {
 func (n *Network) getPrefixForXorname(x XorName) Prefix {
 	prefix := NewBlankPrefix()
 	_, exists := n.Sections[prefix.Key]
-	xornameBitIndex := 0
-	xornameByteIndex := 0
-	for !exists && len(prefix.id) < xornameBits {
+	for !exists && len(prefix.bits) < len(x.bits) {
 		// get the next bit of the xorname prefix
-		xornameByteIndex = xornameBitIndex / 8
-		maskBitIndex := uint(xornameBitIndex % 8)
-		maskByte := byte(0x80) >> maskBitIndex
-		// AND the byte with the mask to give 0 if the bit is 0 or maskByte if
-		// it's 1
-		bit := x.ByteAtIndex(xornameByteIndex) & maskByte
+		bit := x.bits[len(prefix.bits)]
 		// extend the prefix depending on the bit of the xorname
-		if bit == 0 {
+		if bit == false {
 			prefix = prefix.extendLeft()
 		} else {
 			prefix = prefix.extendRight()
 		}
 		_, exists = n.Sections[prefix.Key]
-		// update the next bit to check in the xorname
-		xornameBitIndex = xornameBitIndex + 1
 	}
 	if !exists && n.TotalVaults > 1 {
 		fmt.Println("Warning: No prefix for xorname")
