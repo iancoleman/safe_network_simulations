@@ -15,19 +15,21 @@ const xornameBits = 256
 func NewXorName() XorName {
 	// create a name from prng
 	nameBits := make([]bool, xornameBits)
-	nameBigint := big.NewInt(0)
+	binaryStr := ""
 	for i := 0; i < xornameBits; i++ {
 		bit := prng.Intn(2)
 		if bit == 0 {
 			nameBits[i] = false
-			nameBigint.SetBit(nameBigint, i, 0)
+			binaryStr = binaryStr + "0"
 		} else if bit == 1 {
 			nameBits[i] = true
-			nameBigint.SetBit(nameBigint, i, 1)
+			binaryStr = binaryStr + "1"
 		} else {
 			fmt.Println("Warning: NewXorName generated a number not 0 or 1")
 		}
 	}
+	nameBigint := big.NewInt(0)
+	nameBigint.SetString(binaryStr, 2)
 	x := XorName{
 		bigint: nameBigint,
 		bits:   nameBits,

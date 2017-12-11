@@ -16,8 +16,6 @@ var prng = rand.New(rand.NewSource(0))
 
 type Network struct {
 	Sections         map[string]*Section
-	TotalVaults      int
-	TotalSections    int
 	TotalMerges      int
 	TotalSplits      int
 	TotalJoins       int
@@ -37,8 +35,7 @@ func NewNetworkFromSeed(seed int64) Network {
 }
 
 func (n *Network) AddVault(v *Vault) {
-	// track stats for total vaults
-	n.TotalVaults = n.TotalVaults + 1
+	// track stats
 	n.TotalJoins = n.TotalJoins + 1
 	// get prefix for vault
 	prefix := n.getPrefixForXorname(v.Name)
@@ -50,7 +47,6 @@ func (n *Network) AddVault(v *Vault) {
 		if ne != nil {
 			for _, section = range ne.NewSections {
 				n.Sections[section.Prefix.Key] = section
-				n.TotalSections = n.TotalSections + 1
 			}
 		}
 	}
@@ -62,11 +58,9 @@ func (n *Network) AddVault(v *Vault) {
 		// add new sections
 		for _, s := range ne.NewSections {
 			n.Sections[s.Prefix.Key] = s
-			n.TotalSections = n.TotalSections + 1
 		}
 		// remove old section
 		delete(n.Sections, section.Prefix.Key)
-		n.TotalSections = n.TotalSections - 1
 	}
 	// relocate vault if there is one to relocate
 	if ne != nil && ne.VaultToRelocate != nil {
@@ -75,7 +69,6 @@ func (n *Network) AddVault(v *Vault) {
 }
 
 func (n *Network) RemoveVault(v *Vault) {
-	n.TotalVaults = n.TotalVaults - 1
 	n.TotalDepartures = n.TotalDepartures + 1
 	section, exists := n.Sections[v.Prefix.Key]
 	if !exists {
@@ -89,7 +82,7 @@ func (n *Network) RemoveVault(v *Vault) {
 		n.relocateVault(ne)
 	}
 	// merge if needed
-	if section.shouldMerge() && n.TotalSections > 1 {
+	if section.shouldMerge() && n.HasMoreThanOneSection() {
 		n.TotalMerges = n.TotalMerges + 1
 		parentPrefix := section.Prefix.parent()
 		// get sibling prefix
@@ -102,7 +95,6 @@ func (n *Network) RemoveVault(v *Vault) {
 			siblingVaults := n.Sections[siblingPrefix.Key].Vaults
 			parentVaults = append(parentVaults, siblingVaults...)
 			delete(n.Sections, siblingPrefix.Key)
-			n.TotalSections = n.TotalSections - 1
 		} else {
 			// get child vaults
 			childPrefixes := n.getChildPrefixes(siblingPrefix)
@@ -111,27 +103,31 @@ func (n *Network) RemoveVault(v *Vault) {
 				childVaults := n.Sections[childPrefix.Key].Vaults
 				parentVaults = append(parentVaults, childVaults...)
 				delete(n.Sections, childPrefix.Key)
-				n.TotalSections = n.TotalSections - 1
 			}
 		}
 		// remove the merged section
 		delete(n.Sections, section.Prefix.Key)
-		n.TotalSections = n.TotalSections - 1
 		// create the new section
 		ne := newSection(parentPrefix, parentVaults)
 		if ne != nil {
 			for _, s := range ne.NewSections {
 				n.Sections[s.Prefix.Key] = s
-				n.TotalSections = n.TotalSections + 1
 			}
 		}
 	}
 }
 
 func (n *Network) relocateVault(ne *NetworkEvent) {
-	ne.VaultToRelocate.IncrementAge()
+	// track stats for relocations
 	n.TotalRelocations = n.TotalRelocations + 1
-	// relocate this vault to neighbour with fewest vaults
+	// age the relocated vault
+	ne.VaultToRelocate.IncrementAge()
+	// if only one section, just rename the vault
+	if n.HasOneSection() {
+		ne.VaultToRelocate.renameWithPrefix(ne.VaultToRelocate.Prefix)
+		return
+	}
+	// find the neighbour with shortest prefix or fewest vaults
 	smallestNeighbour := n.Sections[ne.VaultToRelocate.Prefix.Key]
 	minNeighbourPrefix := math.MaxUint32
 	minNeighbourVaults := math.MaxUint32
@@ -179,9 +175,7 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 	oldSection := n.Sections[ne.VaultToRelocate.Prefix.Key]
 	oldSection.removeVault(ne.VaultToRelocate)
 	// adjust vault name to match the neighbour section prefix
-	for i, prefixBit := range smallestNeighbour.Prefix.bits {
-		ne.VaultToRelocate.Name.SetBit(i, prefixBit)
-	}
+	ne.VaultToRelocate.renameWithPrefix(smallestNeighbour.Prefix)
 	// relocate the vault to the smallest neighbour
 	smallestNeighbour.addVault(ne.VaultToRelocate)
 }
@@ -265,9 +259,74 @@ func (n *Network) getPrefixForXorname(x XorName) Prefix {
 		}
 		_, exists = n.Sections[prefix.Key]
 	}
-	if !exists && n.TotalVaults > 1 {
+	if !exists && n.HasMoreThanOneVault() {
 		fmt.Println("Warning: No prefix for xorname")
 		return NewBlankPrefix()
 	}
 	return prefix
+}
+
+func (n *Network) ReportAges() map[int]int {
+	ages := map[int]int{}
+	count := 0
+	for p := range n.Sections {
+		for _, v := range n.Sections[p].Vaults {
+			count = count + 1
+			_, exists := ages[v.Age]
+			if !exists {
+				ages[v.Age] = 0
+			}
+			ages[v.Age] = ages[v.Age] + 1
+		}
+	}
+	return ages
+}
+
+func (n *Network) TotalVaults() int {
+	vaults := 0
+	for p := range n.Sections {
+		vaults = vaults + len(n.Sections[p].Vaults)
+	}
+	return vaults
+}
+
+func (n *Network) TotalSections() int {
+	sections := 0
+	for range n.Sections {
+		sections = sections + 1
+	}
+	return sections
+}
+
+func (n *Network) HasMoreThanOneVault() bool {
+	vaults := 0
+	for p := range n.Sections {
+		vaults = vaults + len(n.Sections[p].Vaults)
+		if vaults > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+func (n *Network) HasMoreThanOneSection() bool {
+	sections := 0
+	for range n.Sections {
+		sections = sections + 1
+		if sections > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+func (n *Network) HasOneSection() bool {
+	sections := 0
+	for range n.Sections {
+		sections = sections + 1
+		if sections > 1 {
+			return false
+		}
+	}
+	return sections == 1
 }

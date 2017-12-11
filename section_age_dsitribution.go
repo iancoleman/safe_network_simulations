@@ -32,10 +32,6 @@ func main() {
 		// remove existing vault
 		if i >= netsize {
 			v := network.GetRandomVault()
-			if v == nil {
-				fmt.Println("Warning: No vault for GetRandomVault")
-				continue
-			}
 			network.RemoveVault(v)
 		}
 	}
@@ -47,8 +43,8 @@ func main() {
 	children := 0
 	adults := 0
 	for _, s := range network.Sections {
-		for v := range s.Vaults {
-			age := int(v.Age)
+		for _, v := range s.Vaults {
+			age := v.Age
 			// track distribution
 			_, exists := ageCount[age]
 			if !exists {
@@ -74,7 +70,7 @@ func main() {
 	adultsCount := map[int]int{}
 	adultsKeys := []int{}
 	for _, s := range network.Sections {
-		adults := int(s.TotalAdults)
+		adults := s.TotalAdults()
 		// track distribution
 		_, exists := adultsCount[adults]
 		if !exists {
@@ -92,5 +88,6 @@ func main() {
 	// network stats
 	fmt.Println(children, "children")
 	fmt.Println(adults, "adults")
-	fmt.Println(network.TotalSections, "total sections")
+	fmt.Println(network.TotalVaults(), "total vaults")
+	fmt.Println(network.TotalSections(), "total sections")
 }

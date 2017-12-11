@@ -32,19 +32,15 @@ func main() {
 		// remove existing vault
 		if i >= netsize {
 			v := network.GetRandomVault()
-			if v == nil {
-				fmt.Println("Warning: No vault for GetRandomVault")
-				continue
-			}
 			network.RemoveVault(v)
 		}
 	}
 	fmt.Println("   100%\n")
 	// report
-	sizes := map[int]uint{}
+	sizes := map[int]int{}
 	sizeKeys := []int{}
 	for _, s := range network.Sections {
-		size := int(s.TotalVaults)
+		size := len(s.Vaults)
 		_, exists := sizes[size]
 		if !exists {
 			sizes[size] = 0
@@ -58,12 +54,10 @@ func main() {
 		fmt.Println(size, sizes[size])
 	}
 	fmt.Println()
-	fmt.Println(network.TotalVaults, "total vaults")
+	fmt.Println(network.TotalVaults(), "total vaults")
 	fmt.Println(network.TotalJoins, "total joins")
 	fmt.Println(network.TotalDepartures, "total departures")
-	fmt.Println(network.TotalVaultEvents, "total vault events")
-	fmt.Println(network.TotalSections, "total sections")
-	fmt.Println(network.TotalSectionEvents, "total section events")
+	fmt.Println(network.TotalSections(), "total sections")
 	fmt.Println(network.TotalSplits, "total splits")
 	fmt.Println(network.TotalMerges, "total merges")
 }

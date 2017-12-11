@@ -31,13 +31,13 @@ func main() {
 		v := safenet.NewVault()
 		network.AddVault(v)
 		// remove existing vaults until network is back to capacity
-		for network.TotalVaults > netsize {
+		for network.TotalVaults() > netsize {
 			e := network.GetRandomVault()
 			network.RemoveVault(e)
 		}
 	}
 	fmt.Println("   100%\n")
-	fmt.Println(network.TotalVaults, "vaults before attack")
+	fmt.Println(network.TotalVaults(), "vaults before attack")
 	// atack the network until the attacker owns a section
 	attackVaultCount := 0
 	for true {
@@ -52,7 +52,7 @@ func main() {
 		attackVaultCount = attackVaultCount + 1
 		// check if attack has worked
 		s := network.Sections[a.Prefix.Key]
-		if s.IsAttacked {
+		if s.IsAttacked() {
 			break
 		}
 		// TODO edge case: if section just split it may have
@@ -74,8 +74,8 @@ func main() {
 	}
 	// report
 	fmt.Println(attackVaultCount, "attacking vaults added to own a section")
-	fmt.Println(network.TotalVaults, "vaults after attack")
-	fmt.Println(network.TotalSections, "sections after attack")
-	pctOwned := float64(attackVaultCount) / float64(network.TotalVaults) * 100
+	fmt.Println(network.TotalVaults(), "vaults after attack")
+	fmt.Println(network.TotalSections(), "sections after attack")
+	pctOwned := float64(attackVaultCount) / float64(network.TotalVaults()) * 100
 	fmt.Println(pctOwned, "percent of total network owned by attacker")
 }

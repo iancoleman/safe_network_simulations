@@ -8,13 +8,9 @@ import (
 )
 
 type Section struct {
-	Prefix           Prefix
-	TotalAdults      int
-	Vaults           []*Vault // all vaults, including elders
-	Elders           []*Vault
-	LeftTotalAdults  int
-	RightTotalAdults int
-	IsAttacked       bool
+	Prefix Prefix
+	Vaults []*Vault // all vaults, including elders
+	Elders []*Vault
 }
 
 // Returns a slice of sections since as vaults age they may cascade into
@@ -23,39 +19,26 @@ func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 	s := Section{
 		Prefix: prefix,
 		Vaults: []*Vault{},
+		Elders: []*Vault{},
 	}
-	// add each existing vault for new section data
+	// add each existing vault to new section
 	for _, v := range vaults {
 		// increment the age
 		v.IncrementAge()
 		// add to section
 		v.SetPrefix(s.Prefix)
 		s.Vaults = append(s.Vaults, v)
-		// track hypothetical future section
-		if v.IsAdult() {
-			s.TotalAdults = s.TotalAdults + 1
-			leftPrefix := s.Prefix.extendLeft()
-			rightPrefix := s.Prefix.extendRight()
-			if leftPrefix.Matches(v.Name) {
-				s.LeftTotalAdults = s.LeftTotalAdults + 1
-			} else if rightPrefix.Matches(v.Name) {
-				s.RightTotalAdults = s.RightTotalAdults + 1
-			} else {
-				fmt.Println("Warning: newSection has vault not matching extended prefix")
-			}
-		}
 	}
-	// track elders but do not respond to network events since this new
-	// section is already the result of that
-	s.updateEldersWithoutNetworkEvent()
+	// track elders
+	ne := s.updateElders()
 	// split into two sections if needed
 	if s.shouldSplit() {
 		return s.split()
 	}
-	// track attack
-	s.checkIfAttacked()
-	// return the section
-	ne := NewNetworkEvent()
+	// return the section as a network event
+	if ne == nil {
+		ne = NewNetworkEvent()
+	}
 	ne.NewSections = []*Section{&s}
 	return ne
 }
@@ -84,55 +67,33 @@ func (s *Section) split() *NetworkEvent {
 }
 
 func (s *Section) shouldSplit() bool {
-	// if there are enough adults to split
-	if s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize {
+	// use adults if there are enough adults to split
+	if s.LeftTotalAdults() >= SplitSize && s.RightTotalAdults() >= SplitSize {
 		return true
 	}
-	// all elders are adults, which may help split young networks
-	left := 0
-	right := 0
-	leftPrefix := s.Prefix.extendLeft()
-	rightPrefix := s.Prefix.extendRight()
-	for _, v := range s.Elders {
-		if leftPrefix.Matches(v.Name) {
-			left = left + 1
-		} else if rightPrefix.Matches(v.Name) {
-			right = right + 1
-		} else {
-			fmt.Println("Warning: should split has vault with no extended prefix match")
-		}
-	}
-	if left >= SplitSize && right >= SplitSize {
+	// all elders count as adults, which may help split young networks with
+	// infant elders.
+	if s.LeftTotalElders() >= SplitSize && s.RightTotalElders() >= SplitSize {
 		return true
 	}
 	return false
 }
 
 func (s *Section) IsComplete() bool {
-	return s.TotalAdults >= GroupSize
+	return s.TotalAdults() >= GroupSize
 }
 
 func (s *Section) addVault(v *Vault) *NetworkEvent {
 	// disallow more than one node aged 1 per section if the section is complete
 	// (all elders are adults)
 	if v.Age == 1 && s.hasVaultAgedOne() && s.IsComplete() {
-		return nil
+		// TODO decide if vault relocation is appropriate here
+		ne := NewNetworkEvent()
+		ne.VaultToRelocate = s.vaultForRelocation(ne)
+		return ne
 	}
 	v.SetPrefix(s.Prefix)
 	s.Vaults = append(s.Vaults, v)
-	// track hypothetical future section
-	if v.IsAdult() {
-		s.TotalAdults = s.TotalAdults + 1
-		leftPrefix := s.Prefix.extendLeft()
-		rightPrefix := s.Prefix.extendRight()
-		if leftPrefix.Matches(v.Name) {
-			s.LeftTotalAdults = s.LeftTotalAdults + 1
-		} else if rightPrefix.Matches(v.Name) {
-			s.RightTotalAdults = s.RightTotalAdults + 1
-		} else {
-			fmt.Println("Warning: addVault does not match extended prefix")
-		}
-	}
 	// track elders
 	ne := s.updateElders()
 	// split into two sections if needed
@@ -140,8 +101,6 @@ func (s *Section) addVault(v *Vault) *NetworkEvent {
 	if s.shouldSplit() {
 		return s.split()
 	}
-	// track attack
-	s.checkIfAttacked()
 	// no split so return zero new sections
 	return ne
 }
@@ -163,39 +122,23 @@ func (s *Section) removeVault(v *Vault) *NetworkEvent {
 			break
 		}
 	}
-	// track hypothetical future section
-	if v.IsAdult() {
-		if s.TotalAdults > 0 {
-			s.TotalAdults = s.TotalAdults - 1
-		}
-		leftPrefix := s.Prefix.extendLeft()
-		rightPrefix := s.Prefix.extendRight()
-		if leftPrefix.Matches(v.Name) {
-			s.LeftTotalAdults = s.LeftTotalAdults - 1
-		} else if rightPrefix.Matches(v.Name) {
-			s.RightTotalAdults = s.RightTotalAdults - 1
-		} else {
-			fmt.Println("Warning: removeVault has vault not matching extended prefix")
-		}
-	}
 	// track elders
 	ne := s.updateElders()
-	// track attack
-	s.checkIfAttacked()
 	// merge is handled by network using NetworkEvent ne
 	return ne
 }
 
-func (s *Section) getElders() []*Vault {
+func (s *Section) updateElders() *NetworkEvent {
 	// get elders
 	// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
 	// the GROUP_SIZE oldest peers in the section
 	sort.Sort(ByAge(s.Vaults))
-	// if there aren't enough vaults, return all of them
-	if len(s.Vaults) <= GroupSize {
-		return s.Vaults
+	// if there aren't enough vaults, use all of them
+	newElders := s.Vaults
+	// otherwise get the GroupSize oldest vaults
+	if len(s.Vaults) > GroupSize {
+		newElders = s.Vaults[len(s.Vaults)-GroupSize:]
 	}
-	newElders := s.Vaults[len(s.Vaults)-GroupSize:]
 	// include any vaults of the same age as the youngest elder
 	for i := len(s.Vaults) - GroupSize - 1; i >= 0; i-- {
 		if s.Vaults[i].Age == newElders[0].Age {
@@ -204,12 +147,6 @@ func (s *Section) getElders() []*Vault {
 			break
 		}
 	}
-	return newElders
-}
-
-func (s *Section) updateElders() *NetworkEvent {
-	// get new elders
-	newElders := s.getElders()
 	// check if elders has changed
 	// firstly based on number of elders being different
 	// secondly based on membership of elders being different
@@ -226,8 +163,9 @@ func (s *Section) updateElders() *NetworkEvent {
 	s.Elders = newElders
 	// create new network event if needed
 	// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
+	blockIsCreated := eldersHasChanged
 	var ne *NetworkEvent
-	if eldersHasChanged {
+	if blockIsCreated {
 		// see if this event causes a vault relocation
 		ne = NewNetworkEvent()
 		v := s.vaultForRelocation(ne)
@@ -239,14 +177,7 @@ func (s *Section) updateElders() *NetworkEvent {
 	return ne
 }
 
-func (s *Section) updateEldersWithoutNetworkEvent() {
-	// get new elders
-	newElders := s.getElders()
-	// cache the elders for future comparison
-	s.Elders = newElders
-}
-
-func (s *Section) checkIfAttacked() {
+func (s *Section) IsAttacked() bool {
 	// check if enough elders to control quorum
 	totalAttackingElders := 0
 	for _, v := range s.Elders {
@@ -259,7 +190,7 @@ func (s *Section) checkIfAttacked() {
 	attackingVotes := totalAttackingElders
 	voters := len(s.Elders)
 	quorumAttacked := attackingVotes*QuorumDenominator > voters*QuorumNumerator
-	s.IsAttacked = quorumAttacked
+	return quorumAttacked
 }
 
 func (s *Section) GetRandomVault() *Vault {
@@ -292,10 +223,9 @@ func (s *Section) vaultForRelocation(ne *NetworkEvent) *Vault {
 			if ne.HashModIsZero(divisor) {
 				youngestAge = w.Age
 				v = w
-				// track xordistance for potenital future tiebreaker
+				// track xordistance for potential future tiebreaker
 				xordistance := big.NewInt(0)
 				xordistance.Xor(w.Name.bigint, ne.hash)
-				xordistance.Abs(xordistance)
 				smallestTiebreaker = xordistance
 			}
 		} else if w.Age == youngestAge {
@@ -308,7 +238,6 @@ func (s *Section) vaultForRelocation(ne *NetworkEvent) *Vault {
 				// public keys together and find the one XOR closest to it.
 				xordistance := big.NewInt(0)
 				xordistance.Xor(w.Name.bigint, ne.hash)
-				xordistance.Abs(xordistance)
 				if xordistance.Cmp(smallestTiebreaker) == -1 {
 					smallestTiebreaker = xordistance
 					v = w
@@ -320,5 +249,69 @@ func (s *Section) vaultForRelocation(ne *NetworkEvent) *Vault {
 }
 
 func (s *Section) shouldMerge() bool {
-	return s.TotalAdults < GroupSize
+	return s.TotalAdults() < GroupSize
+}
+
+func (s *Section) TotalAdults() int {
+	adults := 0
+	for _, v := range s.Vaults {
+		if v.IsAdult() {
+			adults = adults + 1
+		}
+	}
+	// all elders count as adults, which may help split young networks with
+	// infant elders.
+	elders := s.TotalElders()
+	if elders > adults {
+		adults = elders
+	}
+	return adults
+}
+
+func (s *Section) TotalElders() int {
+	return len(s.Elders)
+}
+
+func (s *Section) LeftTotalAdults() int {
+	adults := 0
+	leftPrefix := s.Prefix.extendLeft()
+	for _, v := range s.Vaults {
+		if v.IsAdult() && leftPrefix.Matches(v.Name) {
+			adults = adults + 1
+		}
+	}
+	return adults
+}
+
+func (s *Section) RightTotalAdults() int {
+	adults := 0
+	rightPrefix := s.Prefix.extendRight()
+	for _, v := range s.Vaults {
+		if v.IsAdult() && rightPrefix.Matches(v.Name) {
+			adults = adults + 1
+		}
+	}
+	return adults
+}
+
+func (s *Section) LeftTotalElders() int {
+	elders := 0
+	leftPrefix := s.Prefix.extendLeft()
+	for _, v := range s.Elders {
+		if leftPrefix.Matches(v.Name) {
+			elders = elders + 1
+		}
+	}
+	return elders
+}
+
+func (s *Section) RightTotalElders() int {
+	elders := 0
+	rightPrefix := s.Prefix.extendRight()
+	for _, v := range s.Elders {
+		if rightPrefix.Matches(v.Name) {
+			elders = elders + 1
+		}
+	}
+	return elders
 }

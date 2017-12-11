@@ -26,6 +26,13 @@ func (v *Vault) IsAdult() bool {
 	return v.Age > 4
 }
 
+func (v *Vault) renameWithPrefix(p Prefix) {
+	v.Name = NewXorName()
+	for i, prefixBit := range p.bits {
+		v.Name.SetBit(i, prefixBit)
+	}
+}
+
 type ByAge []*Vault
 
 func (a ByAge) Len() int      { return len(a) }
