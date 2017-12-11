@@ -132,7 +132,7 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 	ne.VaultToRelocate.IncrementAge()
 	n.TotalRelocations = n.TotalRelocations + 1
 	// relocate this vault to neighbour with fewest vaults
-	var smallestNeighbour *Section
+	smallestNeighbour := n.Sections[ne.VaultToRelocate.Prefix.Key]
 	minNeighbourPrefix := math.MaxUint32
 	minNeighbourVaults := math.MaxUint32
 	// get all neighbours
@@ -174,19 +174,16 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 			}
 		}
 	}
-	// check neighbour exists
-	if smallestNeighbour != nil {
-		// TODO age should halve for relocation
-		// remove vault from current section
-		oldSection := n.Sections[ne.VaultToRelocate.Prefix.Key]
-		oldSection.removeVault(ne.VaultToRelocate)
-		// adjust vault name to match the neighbour section prefix
-		for i, prefixBit := range smallestNeighbour.Prefix.bits {
-			ne.VaultToRelocate.Name.SetBit(i, prefixBit)
-		}
-		// relocate the vault to the smallest neighbour
-		smallestNeighbour.addVault(ne.VaultToRelocate)
+	// TODO age should halve for relocation
+	// remove vault from current section
+	oldSection := n.Sections[ne.VaultToRelocate.Prefix.Key]
+	oldSection.removeVault(ne.VaultToRelocate)
+	// adjust vault name to match the neighbour section prefix
+	for i, prefixBit := range smallestNeighbour.Prefix.bits {
+		ne.VaultToRelocate.Name.SetBit(i, prefixBit)
 	}
+	// relocate the vault to the smallest neighbour
+	smallestNeighbour.addVault(ne.VaultToRelocate)
 }
 
 func (n *Network) GetRandomSection() *Section {
