@@ -199,9 +199,7 @@ func (n *Network) GetRandomSection() *Section {
 // Needs to be deterministic but also random.
 // Iterating over keys of a map is not deterministic
 func (n *Network) GetRandomVault() *Vault {
-	// get random section
 	s := n.GetRandomSection()
-	// get random vault from section
 	return s.GetRandomVault()
 }
 

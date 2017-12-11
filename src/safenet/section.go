@@ -45,13 +45,13 @@ func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 			}
 		}
 	}
+	// track elders but do not respond to network events since this new
+	// section is already the result of that
+	s.updateEldersWithoutNetworkEvent()
 	// split into two sections if needed
 	if s.shouldSplit() {
 		return s.split()
 	}
-	// track elders but do not respond to network events since this new
-	// section is already the result of that
-	s.updateEldersWithoutNetworkEvent()
 	// track attack
 	s.checkIfAttacked()
 	// return the section
@@ -84,11 +84,32 @@ func (s *Section) split() *NetworkEvent {
 }
 
 func (s *Section) shouldSplit() bool {
-	return s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize
+	// if there are enough adults to split
+	if s.LeftTotalAdults >= SplitSize && s.RightTotalAdults >= SplitSize {
+		return true
+	}
+	// all elders are adults, which may help split young networks
+	left := 0
+	right := 0
+	leftPrefix := s.Prefix.extendLeft()
+	rightPrefix := s.Prefix.extendRight()
+	for _, v := range s.Elders {
+		if leftPrefix.Matches(v.Name) {
+			left = left + 1
+		} else if rightPrefix.Matches(v.Name) {
+			right = right + 1
+		} else {
+			fmt.Println("Warning: should split has vault with no extended prefix match")
+		}
+	}
+	if left >= SplitSize && right >= SplitSize {
+		return true
+	}
+	return false
 }
 
 func (s *Section) IsComplete() bool {
-	return s.TotalAdults > GroupSize
+	return s.TotalAdults >= GroupSize
 }
 
 func (s *Section) addVault(v *Vault) *NetworkEvent {
@@ -112,13 +133,13 @@ func (s *Section) addVault(v *Vault) *NetworkEvent {
 			fmt.Println("Warning: addVault does not match extended prefix")
 		}
 	}
+	// track elders
+	ne := s.updateElders()
 	// split into two sections if needed
 	// details are handled by network upon returning two new sections
 	if s.shouldSplit() {
 		return s.split()
 	}
-	// track elders
-	ne := s.updateElders()
 	// track attack
 	s.checkIfAttacked()
 	// no split so return zero new sections
