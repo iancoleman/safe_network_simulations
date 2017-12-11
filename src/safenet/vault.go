@@ -10,6 +10,7 @@ type Vault struct {
 func NewVault() *Vault {
 	return &Vault{
 		Name: NewXorName(),
+		Age:  1,
 	}
 }
 

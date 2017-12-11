@@ -15,15 +15,14 @@ const SplitSize = GroupSize + SplitBuffer
 var prng = rand.New(rand.NewSource(0))
 
 type Network struct {
-	Sections           map[string]*Section
-	TotalVaults        int
-	TotalSections      int
-	TotalMerges        int
-	TotalSplits        int
-	TotalSectionEvents int
-	TotalJoins         int
-	TotalDepartures    int
-	TotalRelocations   int
+	Sections         map[string]*Section
+	TotalVaults      int
+	TotalSections    int
+	TotalMerges      int
+	TotalSplits      int
+	TotalJoins       int
+	TotalDepartures  int
+	TotalRelocations int
 }
 
 func NewNetwork() Network {
@@ -60,7 +59,6 @@ func (n *Network) AddVault(v *Vault) {
 	// if there was a split
 	if ne != nil && len(ne.NewSections) > 0 {
 		n.TotalSplits = n.TotalSplits + 1
-		n.TotalSectionEvents = n.TotalSectionEvents + 1
 		// add new sections
 		for _, s := range ne.NewSections {
 			n.Sections[s.Prefix.Key] = s
@@ -91,9 +89,8 @@ func (n *Network) RemoveVault(v *Vault) {
 		n.relocateVault(ne)
 	}
 	// merge if needed
-	if section.TotalAdults < GroupSize && n.TotalSections > 1 {
+	if section.shouldMerge() && n.TotalSections > 1 {
 		n.TotalMerges = n.TotalMerges + 1
-		n.TotalSectionEvents = n.TotalSectionEvents + 1
 		parentPrefix := section.Prefix.parent()
 		// get sibling prefix
 		siblingPrefix := v.Prefix.sibling()
@@ -136,6 +133,7 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 	n.TotalRelocations = n.TotalRelocations + 1
 	// relocate this vault to neighbour with fewest vaults
 	var smallestNeighbour *Section
+	minNeighbourPrefix := math.MaxUint32
 	minNeighbourVaults := math.MaxUint32
 	// get all neighbours
 	for i := 0; i < len(ne.VaultToRelocate.Prefix.bits); i++ {
@@ -154,17 +152,25 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 		}
 		// get network prefixes that match this prefix
 		neighbourPrefixes := n.getMatchingPrefixes(neighbourPrefix)
-		// find smallest neighbour
+		// check if this is the smallest neighbour
+		// prioritise sections with shorter prefixes and having less nodes to balance the network
 		for _, p := range neighbourPrefixes {
 			s := n.Sections[p.Key]
-			if len(s.Vaults) < minNeighbourVaults {
-				minNeighbourVaults = len(s.Vaults)
+			if len(p.bits) < minNeighbourPrefix {
+				// prefer shorter prefixes
+				minNeighbourPrefix = len(p.bits)
 				smallestNeighbour = s
-			} else if len(s.Vaults) == minNeighbourVaults {
-				// TODO tiebreaker for equal sized neighbours
-				// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
-				// If all neighbours have the same number of peers we relocate
-				// to the section closest to the H above (that is not us)
+			} else if len(p.bits) == minNeighbourPrefix {
+				// prefer less vaults if prefix length is same
+				if len(s.Vaults) < minNeighbourVaults {
+					minNeighbourVaults = len(s.Vaults)
+					smallestNeighbour = s
+				} else if len(s.Vaults) == minNeighbourVaults {
+					// TODO tiebreaker for equal sized neighbours
+					// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
+					// If all neighbours have the same number of peers we relocate
+					// to the section closest to the H above (that is not us)
+				}
 			}
 		}
 	}
@@ -176,14 +182,7 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 		oldSection.removeVault(ne.VaultToRelocate)
 		// adjust vault name to match the neighbour section prefix
 		for i, prefixBit := range smallestNeighbour.Prefix.bits {
-			nameBit := ne.VaultToRelocate.Name.bits[i]
-			if nameBit == false && prefixBit == true {
-				// name is 0 but should be 1
-				ne.VaultToRelocate.Name.SetBit(i, prefixBit)
-			} else if nameBit == true && prefixBit == false {
-				// name is 1 but should be 0
-				ne.VaultToRelocate.Name.SetBit(i, prefixBit)
-			}
+			ne.VaultToRelocate.Name.SetBit(i, prefixBit)
 		}
 		// relocate the vault to the smallest neighbour
 		smallestNeighbour.addVault(ne.VaultToRelocate)

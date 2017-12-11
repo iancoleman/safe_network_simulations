@@ -92,6 +92,11 @@ func (s *Section) IsComplete() bool {
 }
 
 func (s *Section) addVault(v *Vault) *NetworkEvent {
+	// disallow more than one node aged 1 per section if the section is complete
+	// (all elders are adults)
+	if v.Age == 1 && s.hasVaultAgedOne() && s.IsComplete() {
+		return nil
+	}
 	v.SetPrefix(s.Prefix)
 	s.Vaults = append(s.Vaults, v)
 	// track hypothetical future section
@@ -118,6 +123,15 @@ func (s *Section) addVault(v *Vault) *NetworkEvent {
 	s.checkIfAttacked()
 	// no split so return zero new sections
 	return ne
+}
+
+func (s *Section) hasVaultAgedOne() bool {
+	for _, v := range s.Vaults {
+		if v.Age == 1 {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Section) removeVault(v *Vault) *NetworkEvent {
@@ -282,4 +296,8 @@ func (s *Section) vaultForRelocation(ne *NetworkEvent) *Vault {
 		}
 	}
 	return v
+}
+
+func (s *Section) shouldMerge() bool {
+	return s.TotalAdults < GroupSize
 }
