@@ -34,7 +34,7 @@ func NewNetworkFromSeed(seed int64) Network {
 	return NewNetwork()
 }
 
-func (n *Network) AddVault(v *Vault) {
+func (n *Network) AddVault(v *Vault) bool {
 	// track stats
 	n.TotalJoins = n.TotalJoins + 1
 	// get prefix for vault
@@ -51,7 +51,10 @@ func (n *Network) AddVault(v *Vault) {
 		}
 	}
 	// add the vault to the section
-	ne := section.addVault(v)
+	ne, disallowed := section.addVault(v)
+	if disallowed {
+		return disallowed
+	}
 	// if there was a split
 	if ne != nil && len(ne.NewSections) > 0 {
 		n.TotalSplits = n.TotalSplits + 1
@@ -66,6 +69,7 @@ func (n *Network) AddVault(v *Vault) {
 	if ne != nil && ne.VaultToRelocate != nil {
 		n.relocateVault(ne)
 	}
+	return disallowed
 }
 
 func (n *Network) RemoveVault(v *Vault) {
@@ -170,14 +174,23 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 			}
 		}
 	}
-	// TODO age should halve for relocation
 	// remove vault from current section
 	oldSection := n.Sections[ne.VaultToRelocate.Prefix.Key]
-	oldSection.removeVault(ne.VaultToRelocate)
+	removene := oldSection.removeVault(ne.VaultToRelocate)
 	// adjust vault name to match the neighbour section prefix
 	ne.VaultToRelocate.renameWithPrefix(smallestNeighbour.Prefix)
 	// relocate the vault to the smallest neighbour
-	smallestNeighbour.addVault(ne.VaultToRelocate)
+	addne, disallowed := smallestNeighbour.addVault(ne.VaultToRelocate)
+	if disallowed {
+		fmt.Println("Warning: disallowed relocated vault")
+	}
+	// handle any cascade network events
+	if removene != nil && removene.VaultToRelocate != nil {
+		n.relocateVault(removene)
+	}
+	if addne != nil && addne.VaultToRelocate != nil {
+		n.relocateVault(addne)
+	}
 }
 
 func (n *Network) GetRandomSection() *Section {
