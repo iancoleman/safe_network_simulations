@@ -147,20 +147,28 @@ func (s *Section) elders() []*Vault {
 }
 
 func (s *Section) IsAttacked() bool {
-	// check if enough elders to control quorum
-	totalAttackingElders := 0
+	// check if enough attacking elders to control quorum
+	// and if attackers control 50% of the age
+	// see https://github.com/maidsafe/rfcs/blob/master/text/0045-node-ageing/0045-node-ageing.md#consensus-measurement
+	// A group consensus will require >50% of nodes and >50% of the age of the whole group.
 	elders := s.elders()
+	totalVotes := len(elders)
+	totalAge := 0
+	attackingVotes := 0
+	attackingAge := 0
 	for _, v := range elders {
+		totalAge = totalAge + v.Age
 		if v.IsAttacker {
-			totalAttackingElders = totalAttackingElders + 1
+			attackingVotes = attackingVotes + 1
+			attackingAge = attackingAge + v.Age
 		}
 	}
 	// use integer arithmetic to check quorum
 	// see https://github.com/maidsafe/routing/blob/da462bfebfd47dd16cb0c7523359d219bb097a3e/src/lib.rs#L213
-	attackingVotes := totalAttackingElders
-	voters := len(elders)
-	quorumAttacked := attackingVotes*QuorumDenominator > voters*QuorumNumerator
-	return quorumAttacked
+	votesAttacked := attackingVotes*QuorumDenominator > totalVotes*QuorumNumerator
+	// compare ages
+	ageAttacked := attackingAge*QuorumDenominator > totalAge*QuorumNumerator
+	return votesAttacked && ageAttacked
 }
 
 func (s *Section) GetRandomVault() *Vault {
