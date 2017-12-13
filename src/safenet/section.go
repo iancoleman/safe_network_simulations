@@ -27,32 +27,37 @@ func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 		v.SetPrefix(s.Prefix)
 		s.Vaults = append(s.Vaults, v)
 	}
-	// split into two sections if needed
+	// split into two sections if needed.
+	// there is no vault relocation here.
 	if s.shouldSplit() {
 		return s.split()
 	}
-	// return the section as a network event
+	// return the section as a network event.
+	// there is a vault relocation here.
 	ne := NewNetworkEvent()
 	ne.NewSections = []*Section{&s}
+	v := s.vaultForRelocation(ne)
+	if v != nil {
+		ne.VaultToRelocate = v
+	}
 	return ne
 }
 
 func (s *Section) addVault(v *Vault) (*NetworkEvent, bool) {
-	// disallow more than one node aged 1 per section if the section is complete
-	// (all elders are adults)
+	// disallow more than one node aged 1 per section if the section is
+	// complete (all elders are adults)
 	// see https://github.com/fizyk20/ageing_sim/blob/53829350daa372731c9b8080488b2a75c72f60bb/src/network/section.rs#L198
-	disallowed := false
+	isDisallowed := false
 	if v.Age == 1 && s.hasVaultAgedOne() && s.isComplete() {
-		fmt.Println("Disallowed")
-		disallowed = true
-		return nil, disallowed
+		isDisallowed = true
+		return nil, isDisallowed
 	}
 	v.SetPrefix(s.Prefix)
 	s.Vaults = append(s.Vaults, v)
 	// split into two sections if needed
 	// details are handled by network upon returning two new sections
 	if s.shouldSplit() {
-		return s.split(), disallowed
+		return s.split(), isDisallowed
 	}
 	// no split so return zero new sections
 	// but a new vault added triggers a network event which may lead to vault
@@ -62,7 +67,7 @@ func (s *Section) addVault(v *Vault) (*NetworkEvent, bool) {
 	if r != nil {
 		ne.VaultToRelocate = r
 	}
-	return ne, disallowed
+	return ne, isDisallowed
 }
 
 func (s *Section) removeVault(v *Vault) *NetworkEvent {
@@ -107,21 +112,14 @@ func (s *Section) split() *NetworkEvent {
 }
 
 func (s *Section) shouldSplit() bool {
-	// use adults if there are enough adults to split
-	if s.leftTotalAdults() >= SplitSize && s.rightTotalAdults() >= SplitSize {
-		return true
-	}
-	// all elders count as adults, which may help split young networks with
-	// infant elders.
-	if s.leftTotalElders() >= SplitSize && s.rightTotalElders() >= SplitSize {
-		return true
-	}
-	return false
+	left := s.leftAdults()
+	right := s.rightAdults()
+	return left >= SplitSize && right >= SplitSize
 }
 
 func (s *Section) isComplete() bool {
 	// GROUP_SIZE peers with age >4 in a section
-	return s.TotalAdults() == GroupSize
+	return s.TotalAdults() >= GroupSize
 }
 
 func (s *Section) hasVaultAgedOne() bool {
@@ -221,7 +219,7 @@ func (s *Section) vaultForRelocation(ne *NetworkEvent) *Vault {
 }
 
 func (s *Section) shouldMerge() bool {
-	return s.TotalElders() < GroupSize
+	return s.TotalAdults() <= GroupSize
 }
 
 func (s *Section) TotalAdults() int {
@@ -238,46 +236,22 @@ func (s *Section) TotalElders() int {
 	return len(s.elders())
 }
 
-func (s *Section) leftTotalAdults() int {
-	adults := 0
+func (s *Section) leftAdults() int {
 	leftPrefix := s.Prefix.extendLeft()
+	return s.adultsForExtendedPrefix(leftPrefix)
+}
+
+func (s *Section) rightAdults() int {
+	rightPrefix := s.Prefix.extendRight()
+	return s.adultsForExtendedPrefix(rightPrefix)
+}
+
+func (s *Section) adultsForExtendedPrefix(p Prefix) int {
+	adults := 0
 	for _, v := range s.Vaults {
-		if v.IsAdult() && leftPrefix.Matches(v.Name) {
+		if v.IsAdult() && p.Matches(v.Name) {
 			adults = adults + 1
 		}
 	}
 	return adults
-}
-
-func (s *Section) rightTotalAdults() int {
-	adults := 0
-	rightPrefix := s.Prefix.extendRight()
-	for _, v := range s.Vaults {
-		if v.IsAdult() && rightPrefix.Matches(v.Name) {
-			adults = adults + 1
-		}
-	}
-	return adults
-}
-
-func (s *Section) leftTotalElders() int {
-	elders := 0
-	leftPrefix := s.Prefix.extendLeft()
-	for _, v := range s.elders() {
-		if leftPrefix.Matches(v.Name) {
-			elders = elders + 1
-		}
-	}
-	return elders
-}
-
-func (s *Section) rightTotalElders() int {
-	elders := 0
-	rightPrefix := s.Prefix.extendRight()
-	for _, v := range s.elders() {
-		if rightPrefix.Matches(v.Name) {
-			elders = elders + 1
-		}
-	}
-	return elders
 }

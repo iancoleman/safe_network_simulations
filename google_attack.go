@@ -29,7 +29,11 @@ func main() {
 		}
 		// create a new vault
 		v := safenet.NewVault()
-		network.AddVault(v)
+		disallowed := network.AddVault(v)
+		for disallowed {
+			v = safenet.NewVault()
+			disallowed = network.AddVault(v)
+		}
 		// remove existing vaults until network is back to capacity
 		for network.TotalVaults() > netsize {
 			e := network.GetRandomVault()

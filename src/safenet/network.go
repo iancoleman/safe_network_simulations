@@ -52,9 +52,6 @@ func (n *Network) AddVault(v *Vault) bool {
 	}
 	// add the vault to the section
 	ne, disallowed := section.addVault(v)
-	if disallowed {
-		return disallowed
-	}
 	// if there was a split
 	if ne != nil && len(ne.NewSections) > 0 {
 		n.TotalSplits = n.TotalSplits + 1
@@ -124,14 +121,8 @@ func (n *Network) RemoveVault(v *Vault) {
 func (n *Network) relocateVault(ne *NetworkEvent) {
 	// track stats for relocations
 	n.TotalRelocations = n.TotalRelocations + 1
-	// age the relocated vault
-	ne.VaultToRelocate.IncrementAge()
-	// if only one section, just rename the vault
-	if n.HasOneSection() {
-		ne.VaultToRelocate.renameWithPrefix(ne.VaultToRelocate.Prefix)
-		return
-	}
 	// find the neighbour with shortest prefix or fewest vaults
+	// default to the existing section, useful for zero-length prefix
 	smallestNeighbour := n.Sections[ne.VaultToRelocate.Prefix.Key]
 	minNeighbourPrefix := math.MaxUint32
 	minNeighbourVaults := math.MaxUint32
@@ -174,22 +165,16 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 			}
 		}
 	}
-	// remove vault from current section
-	oldSection := n.Sections[ne.VaultToRelocate.Prefix.Key]
-	removene := oldSection.removeVault(ne.VaultToRelocate)
+	// remove vault from current section (includes merge if needed)
+	n.RemoveVault(ne.VaultToRelocate)
 	// adjust vault name to match the neighbour section prefix
 	ne.VaultToRelocate.renameWithPrefix(smallestNeighbour.Prefix)
-	// relocate the vault to the smallest neighbour
-	addne, disallowed := smallestNeighbour.addVault(ne.VaultToRelocate)
+	// age the relocated vault
+	ne.VaultToRelocate.IncrementAge()
+	// relocate the vault to the smallest neighbour (includes split if needed)
+	disallowed := n.AddVault(ne.VaultToRelocate)
 	if disallowed {
 		fmt.Println("Warning: disallowed relocated vault")
-	}
-	// handle any cascade network events
-	if removene != nil && removene.VaultToRelocate != nil {
-		n.relocateVault(removene)
-	}
-	if addne != nil && addne.VaultToRelocate != nil {
-		n.relocateVault(addne)
 	}
 }
 
