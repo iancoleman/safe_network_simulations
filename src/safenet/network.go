@@ -78,10 +78,6 @@ func (n *Network) RemoveVault(v *Vault) {
 	}
 	// remove the vault from the section
 	ne := section.removeVault(v)
-	// relocate a vault if there is one to relocate
-	if ne != nil && ne.VaultToRelocate != nil {
-		n.relocateVault(ne)
-	}
 	// merge if needed
 	if section.shouldMerge() && n.HasMoreThanOneSection() {
 		n.TotalMerges = n.TotalMerges + 1
@@ -115,6 +111,10 @@ func (n *Network) RemoveVault(v *Vault) {
 				n.Sections[s.Prefix.Key] = s
 			}
 		}
+	} else if ne != nil && ne.VaultToRelocate != nil {
+		// if there is no merge but there is a vault to relocate,
+		// relocate the vault
+		n.relocateVault(ne)
 	}
 }
 
