@@ -109,9 +109,15 @@ func (s *Section) split() *NetworkEvent {
 }
 
 func (s *Section) shouldSplit() bool {
-	left := s.leftAdults()
-	right := s.rightAdults()
-	return left >= SplitSize && right >= SplitSize
+	if s.isComplete() {
+		left := s.leftAdultCount()
+		right := s.rightAdultCount()
+		return left >= SplitSize && right >= SplitSize
+	} else {
+		left := s.leftVaultCount()
+		right := s.rightVaultCount()
+		return left >= SplitSize && right >= SplitSize
+	}
 }
 
 func (s *Section) isComplete() bool {
@@ -241,17 +247,37 @@ func (s *Section) TotalElders() int {
 	return len(s.elders())
 }
 
-func (s *Section) leftAdults() int {
+func (s *Section) leftVaultCount() int {
 	leftPrefix := s.Prefix.extendLeft()
-	return s.adultsForExtendedPrefix(leftPrefix)
+	return s.vaultCountForExtendedPrefix(leftPrefix)
 }
 
-func (s *Section) rightAdults() int {
+func (s *Section) rightVaultCount() int {
 	rightPrefix := s.Prefix.extendRight()
-	return s.adultsForExtendedPrefix(rightPrefix)
+	return s.vaultCountForExtendedPrefix(rightPrefix)
 }
 
-func (s *Section) adultsForExtendedPrefix(p Prefix) int {
+func (s *Section) vaultCountForExtendedPrefix(p Prefix) int {
+	vaults := 0
+	for _, v := range s.Vaults {
+		if p.Matches(v.Name) {
+			vaults = vaults + 1
+		}
+	}
+	return vaults
+}
+
+func (s *Section) leftAdultCount() int {
+	leftPrefix := s.Prefix.extendLeft()
+	return s.adultCountForExtendedPrefix(leftPrefix)
+}
+
+func (s *Section) rightAdultCount() int {
+	rightPrefix := s.Prefix.extendRight()
+	return s.adultCountForExtendedPrefix(rightPrefix)
+}
+
+func (s *Section) adultCountForExtendedPrefix(p Prefix) int {
 	adults := 0
 	for _, v := range s.Vaults {
 		if v.IsAdult() && p.Matches(v.Name) {
