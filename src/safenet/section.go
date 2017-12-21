@@ -21,9 +21,6 @@ func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 	}
 	// add each existing vault to new section
 	for _, v := range vaults {
-		// increment the age
-		v.IncrementAge()
-		// add to section
 		v.SetPrefix(s.Prefix)
 		s.Vaults = append(s.Vaults, v)
 	}
