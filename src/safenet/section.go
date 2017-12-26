@@ -139,7 +139,7 @@ func (s *Section) elders() []*Vault {
 	// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
 	// the GROUP_SIZE oldest peers in the section
 	// tiebreakers are handled by the sort algorithm
-	sort.Sort(forEldership(s.Vaults))
+	sort.Sort(youngestFirst(s.Vaults))
 	// if there aren't enough vaults, use all of them
 	elders := s.Vaults
 	// otherwise get the GroupSize oldest vaults
