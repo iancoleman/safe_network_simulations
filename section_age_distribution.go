@@ -38,29 +38,7 @@ func main() {
 	fmt.Println("   100%\n")
 	// report
 	// age distribution for all vaults
-	ageCount := map[int]int{}
-	ageKeys := []int{}
-	children := 0
-	adults := 0
-	for _, s := range network.Sections {
-		for _, v := range s.Vaults {
-			age := v.Age
-			// track distribution
-			_, exists := ageCount[age]
-			if !exists {
-				ageCount[age] = 0
-				ageKeys = append(ageKeys, age)
-			}
-			ageCount[age] = ageCount[age] + 1
-			// track category
-			if v.IsAdult() {
-				adults = adults + 1
-			} else {
-				children = children + 1
-			}
-		}
-	}
-	sort.Sort(sort.IntSlice(ageKeys))
+	ageCount, ageKeys := network.ReportAges()
 	fmt.Println("age", "vaults")
 	for _, age := range ageKeys {
 		fmt.Println(age, ageCount[age])
@@ -86,8 +64,6 @@ func main() {
 	}
 	fmt.Println()
 	// network stats
-	fmt.Println(children, "children")
-	fmt.Println(adults, "adults")
 	fmt.Println(network.TotalVaults(), "total vaults")
 	fmt.Println(network.TotalSections(), "total sections")
 }

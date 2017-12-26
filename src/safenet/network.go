@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
 )
 
 const GroupSize = 8
@@ -264,8 +265,9 @@ func (n *Network) getPrefixForXorname(x XorName) Prefix {
 	return prefix
 }
 
-func (n *Network) ReportAges() map[int]int {
+func (n *Network) ReportAges() (map[int]int, []int) {
 	ages := map[int]int{}
+	ageKeys := []int{}
 	count := 0
 	for p := range n.Sections {
 		for _, v := range n.Sections[p].Vaults {
@@ -273,11 +275,13 @@ func (n *Network) ReportAges() map[int]int {
 			_, exists := ages[v.Age]
 			if !exists {
 				ages[v.Age] = 0
+				ageKeys = append(ageKeys, v.Age)
 			}
 			ages[v.Age] = ages[v.Age] + 1
 		}
 	}
-	return ages
+	sort.Sort(sort.IntSlice(ageKeys))
+	return ages, ageKeys
 }
 
 func (n *Network) TotalVaults() int {
