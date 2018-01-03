@@ -50,9 +50,13 @@ func main() {
 			fmt.Print(attackVaultCount, " attacking vaults added\r")
 		}
 		// add an attacking vault
-		a := safenet.NewVault()
-		a.IsAttacker = true
-		network.AddVault(a)
+		disallowed := true
+		var a *safenet.Vault
+		for disallowed {
+			a = safenet.NewVault()
+			a.IsAttacker = true
+			disallowed = network.AddVault(a)
+		}
 		attackVaultCount = attackVaultCount + 1
 		// check if attack has worked
 		s := network.Sections[a.Prefix.Key]
@@ -64,8 +68,11 @@ func main() {
 		// should check the sibling section
 		// add one normal vault for every ten attacking
 		if attackVaultCount%10 == 0 {
-			v := safenet.NewVault()
-			network.AddVault(v)
+			disallowed := true
+			for disallowed {
+				v := safenet.NewVault()
+				disallowed = network.AddVault(v)
+			}
 		}
 		// remove a non-attacking vault for every ten attacking
 		if attackVaultCount%10 == 0 {
