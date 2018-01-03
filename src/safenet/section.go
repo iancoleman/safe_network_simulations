@@ -108,15 +108,9 @@ func (s *Section) split() *NetworkEvent {
 }
 
 func (s *Section) shouldSplit() bool {
-	if s.isComplete() {
-		left := s.leftAdultCount()
-		right := s.rightAdultCount()
-		return left >= SplitSize && right >= SplitSize
-	} else {
-		left := s.leftVaultCount()
-		right := s.rightVaultCount()
-		return left >= SplitSize && right >= SplitSize
-	}
+	left := s.leftAdultCount()
+	right := s.rightAdultCount()
+	return left >= SplitSize && right >= SplitSize
 }
 
 func (s *Section) isComplete() bool {
