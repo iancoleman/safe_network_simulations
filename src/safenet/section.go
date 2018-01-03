@@ -2,7 +2,6 @@ package safenet
 
 import (
 	"fmt"
-	"math"
 	"math/big"
 	"sort"
 )
@@ -139,12 +138,12 @@ func (s *Section) elders() []*Vault {
 	// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
 	// the GROUP_SIZE oldest peers in the section
 	// tiebreakers are handled by the sort algorithm
-	sort.Sort(youngestFirst(s.Vaults))
+	sort.Sort(oldestFirst(s.Vaults))
 	// if there aren't enough vaults, use all of them
 	elders := s.Vaults
 	// otherwise get the GroupSize oldest vaults
 	if len(s.Vaults) > GroupSize {
-		elders = s.Vaults[len(s.Vaults)-GroupSize:]
+		elders = s.Vaults[:GroupSize]
 	}
 	return elders
 }
@@ -191,25 +190,25 @@ func (s *Section) vaultForRelocation(ne *NetworkEvent) *Vault {
 	// the Hash of the event H. Then if H % 2^age == 0 for any peer (sorted by
 	// age ascending) in our section, we relocate this node to the neighbour
 	// that has the lowest number of peers.
-	youngestAge := math.MaxUint32
+	oldestAge := 0
 	smallestTiebreaker := big.NewInt(0).SetBytes(largestHashValue)
 	var v *Vault
 	for _, w := range s.Vaults {
-		if w.Age > youngestAge {
+		if w.Age < oldestAge {
 			continue
-		} else if w.Age < youngestAge {
+		} else if w.Age > oldestAge {
 			// calculate divisor as 2^age
 			divisor := big.NewInt(1)
 			divisor.Lsh(divisor, uint(w.Age))
 			if ne.HashModIsZero(divisor) {
-				youngestAge = w.Age
+				oldestAge = w.Age
 				v = w
 				// track xordistance for potential future tiebreaker
 				xordistance := big.NewInt(0)
 				xordistance.Xor(w.Name.bigint, ne.hash)
 				smallestTiebreaker = xordistance
 			}
-		} else if w.Age == youngestAge {
+		} else if w.Age == oldestAge {
 			// calculate divisor as 2^age
 			divisor := big.NewInt(1)
 			divisor.Lsh(divisor, uint(w.Age))
@@ -217,6 +216,8 @@ func (s *Section) vaultForRelocation(ne *NetworkEvent) *Vault {
 				// tiebreaker
 				// If there are multiple peers of the same age then XOR their
 				// public keys together and find the one XOR closest to it.
+				// TODO this isn't done correctly, since it only XORs the two
+				// keys when it should XOR all keys of this age.
 				xordistance := big.NewInt(0)
 				xordistance.Xor(w.Name.bigint, ne.hash)
 				if xordistance.Cmp(smallestTiebreaker) == -1 {

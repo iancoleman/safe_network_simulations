@@ -48,16 +48,6 @@ func (v oldestFirst) Less(i, j int) bool {
 	return v[i].Age > v[j].Age
 }
 
-type youngestFirst []*Vault
-
-func (v youngestFirst) Len() int      { return len(v) }
-func (v youngestFirst) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
-func (v youngestFirst) Less(i, j int) bool {
-	if v[i].Age == v[j].Age {
-		return resolveAgeTiebreaker(v[i], v[j])
-	}
-	return v[i].Age < v[j].Age
-}
 func resolveAgeTiebreaker(vi, vj *Vault) bool {
 	// ties in age are resolved by XOR their public keys together and find the
 	// one XOR closest to it
