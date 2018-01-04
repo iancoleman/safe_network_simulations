@@ -41,13 +41,14 @@ func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 
 func (s *Section) addVault(v *Vault) (*NetworkEvent, bool) {
 	// disallow more than one node aged 1 per section if the section is
+	// TODO currently disabled, should be reenabled
 	// complete (all elders are adults)
 	// see https://github.com/fizyk20/ageing_sim/blob/53829350daa372731c9b8080488b2a75c72f60bb/src/network/section.rs#L198
 	isDisallowed := false
-	if v.Age == 1 && s.hasVaultAgedOne() && s.isComplete() {
-		isDisallowed = true
-		return nil, isDisallowed
-	}
+	//if v.Age == 1 && s.hasVaultAgedOne() && s.isComplete() {
+	//	isDisallowed = true
+	//	return nil, isDisallowed
+	//}
 	v.SetPrefix(s.Prefix)
 	s.Vaults = append(s.Vaults, v)
 	// split into two sections if needed
