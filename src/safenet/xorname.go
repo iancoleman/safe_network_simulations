@@ -57,3 +57,6 @@ func (x *XorName) SetBit(i int, b bool) {
 	}
 	x.bigint.SetBit(x.bigint, i, v)
 }
+func (x *XorName) GetBit(i int) bool {
+	return x.bits[i]
+}
