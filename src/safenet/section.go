@@ -45,7 +45,7 @@ func (s *Section) addVault(v *Vault) (*NetworkEvent, bool) {
 	// complete (all elders are adults)
 	// see https://github.com/fizyk20/ageing_sim/blob/53829350daa372731c9b8080488b2a75c72f60bb/src/network/section.rs#L198
 	isDisallowed := false
-	//if v.Age == 1 && s.hasVaultAgedOne() && s.isComplete() {
+	//if v.Age == 4 && s.hasVaultAgedFour() && s.isComplete() {
 	//	isDisallowed = true
 	//	return nil, isDisallowed
 	//}
@@ -119,9 +119,9 @@ func (s *Section) isComplete() bool {
 	return s.TotalAdults() >= GroupSize
 }
 
-func (s *Section) hasVaultAgedOne() bool {
+func (s *Section) hasVaultAgedFour() bool {
 	for _, v := range s.Vaults {
-		if v.Age == 1 {
+		if v.Age == 4 {
 			return true
 		}
 	}
