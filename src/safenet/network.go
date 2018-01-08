@@ -16,17 +16,19 @@ const SplitSize = GroupSize + SplitBuffer
 var prng = rand.New(rand.NewSource(0))
 
 type Network struct {
-	Sections         map[string]*Section
-	TotalMerges      int
-	TotalSplits      int
-	TotalJoins       int
-	TotalDepartures  int
-	TotalRelocations int
+	Sections          map[string]*Section
+	TotalMerges       int
+	TotalSplits       int
+	TotalJoins        int
+	TotalDepartures   int
+	TotalRelocations  int
+	NeighbourhoodHops []int
 }
 
 func NewNetwork() Network {
 	return Network{
-		Sections: map[string]*Section{},
+		Sections:          map[string]*Section{},
+		NeighbourhoodHops: []int{},
 	}
 }
 
@@ -173,6 +175,21 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 			}
 		}
 	}
+	// track neighbourhood hops by comparing how many bits differ
+	// between the new and the old prefix.
+	neighbourhoodHops := 0
+	prefixLength := len(smallestNeighbour.Prefix.Key)
+	if len(ne.VaultToRelocate.Prefix.Key) < prefixLength {
+		prefixLength = len(ne.VaultToRelocate.Prefix.Key)
+	}
+	for i := 0; i < prefixLength; i++ {
+		newBit := smallestNeighbour.Prefix.Key[i]
+		oldBit := ne.VaultToRelocate.Prefix.Key[i]
+		if newBit != oldBit {
+			neighbourhoodHops = neighbourhoodHops + 1
+		}
+	}
+	n.NeighbourhoodHops = append(n.NeighbourhoodHops, neighbourhoodHops)
 	// remove vault from current section (includes merge if needed)
 	n.RemoveVault(ne.VaultToRelocate)
 	// adjust vault name to match the neighbour section prefix
