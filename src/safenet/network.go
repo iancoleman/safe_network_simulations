@@ -158,11 +158,13 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 				s := n.Sections[p.Key]
 				if len(p.bits) < minNeighbourPrefix {
 					// prefer shorter prefixes
+					neighbourPrefix = p
 					minNeighbourPrefix = len(p.bits)
 					smallestNeighbour = s
 				} else if len(p.bits) == minNeighbourPrefix {
 					// prefer less vaults if prefix length is same
 					if len(s.Vaults) < minNeighbourVaults {
+						neighbourPrefix = p
 						minNeighbourVaults = len(s.Vaults)
 						smallestNeighbour = s
 					} else if len(s.Vaults) == minNeighbourVaults {
