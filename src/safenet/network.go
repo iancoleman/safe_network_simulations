@@ -142,26 +142,33 @@ func (n *Network) relocateVault(ne *NetworkEvent) {
 				neighbourPrefix = neighbourPrefix.extendRight()
 			}
 		}
-		// get network prefixes that match this prefix
-		neighbourPrefixes := n.getMatchingPrefixes(neighbourPrefix)
-		// check if this is the smallest neighbour
-		// prioritise sections with shorter prefixes and having less nodes to balance the network
-		for _, p := range neighbourPrefixes {
-			s := n.Sections[p.Key]
-			if len(p.bits) < minNeighbourPrefix {
-				// prefer shorter prefixes
-				minNeighbourPrefix = len(p.bits)
-				smallestNeighbour = s
-			} else if len(p.bits) == minNeighbourPrefix {
-				// prefer less vaults if prefix length is same
-				if len(s.Vaults) < minNeighbourVaults {
-					minNeighbourVaults = len(s.Vaults)
+		// get neighbouring prefixes from the network for this prefix
+		// and repeat until we arrive at the 'best' neighbour prefix
+		prevNeighbourPrefix := NewBlankPrefix()
+		for !neighbourPrefix.Equals(prevNeighbourPrefix) {
+			// track previous neighbour prefix
+			prevNeighbourPrefix = neighbourPrefix
+			// get potential new neighbour prefixes
+			neighbourPrefixes := n.getMatchingPrefixes(neighbourPrefix)
+			// check if these neighbours contain the 'best' neighbour
+			// prioritise sections with shorter prefixes and having less nodes to balance the network
+			for _, p := range neighbourPrefixes {
+				s := n.Sections[p.Key]
+				if len(p.bits) < minNeighbourPrefix {
+					// prefer shorter prefixes
+					minNeighbourPrefix = len(p.bits)
 					smallestNeighbour = s
-				} else if len(s.Vaults) == minNeighbourVaults {
-					// TODO tiebreaker for equal sized neighbours
-					// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
-					// If all neighbours have the same number of peers we relocate
-					// to the section closest to the H above (that is not us)
+				} else if len(p.bits) == minNeighbourPrefix {
+					// prefer less vaults if prefix length is same
+					if len(s.Vaults) < minNeighbourVaults {
+						minNeighbourVaults = len(s.Vaults)
+						smallestNeighbour = s
+					} else if len(s.Vaults) == minNeighbourVaults {
+						// TODO tiebreaker for equal sized neighbours
+						// see https://forum.safedev.org/t/data-chains-deeper-dive/1209
+						// If all neighbours have the same number of peers we relocate
+						// to the section closest to the H above (that is not us)
+					}
 				}
 			}
 		}
