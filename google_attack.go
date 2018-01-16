@@ -1,22 +1,16 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"safenet"
 )
 
 func main() {
 	// get user variables
-	var seedPtr *int64
-	seedPtr = flag.Int64("seed", 0, "seed for the prng")
-	var netsizePtr *int
-	netsizePtr = flag.Int("netsize", 100000, "number of vaults in the final network")
-	flag.Parse()
-	seed := *seedPtr
-	netsize := *netsizePtr
+	seed := safenet.LoadConfigInt("config_google_attack.json", "seed", 0)
+	netsize := safenet.LoadConfigInt("config_google_attack.json", "netsize", 100000)
 	// create network
-	network := safenet.NewNetworkFromSeed(seed)
+	network := safenet.NewNetworkFromSeed(int64(seed))
 	totalEvents := netsize * 5
 	pctStep := totalEvents / 100
 	// Create initial network
