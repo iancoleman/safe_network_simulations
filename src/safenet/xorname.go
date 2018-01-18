@@ -60,3 +60,10 @@ func (x *XorName) SetBit(i int, b bool) {
 func (x *XorName) GetBit(i int) bool {
 	return x.bits[i]
 }
+
+func bigIntModInt64IsZero(bi *big.Int, i int64) bool {
+	b64 := big.NewInt(i)
+	result := big.NewInt(1)
+	result.Mod(bi, b64)
+	return result.Cmp(big.NewInt(0)) == 0
+}

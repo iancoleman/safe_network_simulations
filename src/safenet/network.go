@@ -23,12 +23,15 @@ type Network struct {
 	TotalDepartures   int
 	TotalRelocations  int
 	NeighbourhoodHops []int
+	Safecoins         map[string]bool
+	TotalSafecoins    int
 }
 
 func NewNetwork() Network {
 	return Network{
 		Sections:          map[string]*Section{},
 		NeighbourhoodHops: []int{},
+		Safecoins:         map[string]bool{},
 	}
 }
 
@@ -357,4 +360,59 @@ func (n *Network) HasOneSection() bool {
 		}
 	}
 	return sections == 1
+}
+
+func (n *Network) DoRandomPut() {
+	chunkName := NewXorName()
+	prefix := n.getPrefixForXorname(chunkName)
+	section := n.Sections[prefix.Key]
+	// the section knows it has stored 'some chunk' but doesn't care about the
+	// details of that chunk. The name is only important for deciding the
+	// target section.
+	section.PutChunk()
+}
+
+func (n *Network) DoRandomGet() {
+	// get triggers opportunity to farm.
+	// check the opportunity passes the farm rate test.
+	// see https://github.com/maidsafe/rfcs/blob/master/text/0012-safecoin-implementation/0012-safecoin-implementation.md#farm-request-calculation
+	chunkName := NewXorName()
+	prefix := n.getPrefixForXorname(chunkName)
+	section := n.Sections[prefix.Key]
+	farmDivisor := section.FarmDivisor()
+	if farmDivisor > 0 {
+		chunkHash := NewXorName() // simulated hash of PmidHolderName + chunkHame
+		testPasses := bigIntModInt64IsZero(chunkHash.bigint, farmDivisor)
+		if !testPasses {
+			return
+		}
+	}
+	// try creating the coin if it doesn't exist yet
+	a := randomSafecoinAddress()
+	_, exists := n.Safecoins[a]
+	if !exists {
+		n.Safecoins[a] = true
+		n.TotalSafecoins = n.TotalSafecoins + 1
+	}
+}
+
+func (n *Network) AvgSafecoinPerMb() float64 {
+	var sum float64
+	var sections float64
+	for _, s := range n.Sections {
+		sum = s.SafecoinPerMb()
+		sections = sections + 1
+	}
+	return sum / sections
+}
+
+func (n *Network) CreateSafecoin() {
+	a := randomSafecoinAddress()
+	_, exists := n.Safecoins[a]
+	for exists {
+		a = randomSafecoinAddress()
+		_, exists = n.Safecoins[a]
+	}
+	n.Safecoins[a] = true
+	n.TotalSafecoins = n.TotalSafecoins + 1
 }

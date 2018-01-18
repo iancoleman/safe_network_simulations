@@ -4,17 +4,30 @@ import (
 	"math/big"
 )
 
+// the starting storage space for a vault is chosen randomly from this list
+var startingStorageSizesMb = []float64{
+	100,
+	200,
+	300,
+	400,
+	500,
+}
+
 type Vault struct {
 	Name       XorName
 	Prefix     Prefix
 	Age        int
 	IsAttacker bool
+	UsedMb     float64
+	SpareMb    float64
 }
 
 func NewVault() *Vault {
 	return &Vault{
-		Name: NewXorName(),
-		Age:  1,
+		Name:    NewXorName(),
+		Age:     1,
+		UsedMb:  0,
+		SpareMb: randomStorageSize(),
 	}
 }
 
@@ -62,4 +75,25 @@ func resolveAgeTiebreaker(vi, vj *Vault) bool {
 	// if xi is larger than xj then i should be lower in the sort order
 	// than j since i is further away.
 	return xi.Cmp(xj) == 1
+}
+
+func (v *Vault) StoreChunk() bool {
+	// check if there's enough space to store the chunk
+	didStore := false
+	if v.SpareMb <= 0 {
+		return didStore
+	}
+	// store it
+	v.UsedMb = v.UsedMb + 1
+	v.SpareMb = v.SpareMb - 1
+	// let the section know it was stored
+	didStore = true
+	return didStore
+}
+
+func randomStorageSize() float64 {
+	// most vaults have smaller storage size
+	n := len(startingStorageSizesMb)
+	i := prng.Intn(n)
+	return startingStorageSizesMb[i]
 }

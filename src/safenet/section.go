@@ -22,6 +22,7 @@ func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 	for _, v := range vaults {
 		v.SetPrefix(s.Prefix)
 		s.Vaults = append(s.Vaults, v)
+		// TODO set storage values for this vault
 	}
 	// split into two sections if needed.
 	// there is no vault relocation here.
@@ -51,6 +52,7 @@ func (s *Section) addVault(v *Vault) (*NetworkEvent, bool) {
 	//}
 	v.SetPrefix(s.Prefix)
 	s.Vaults = append(s.Vaults, v)
+	// TODO set storage values for this vault
 	// split into two sections if needed
 	// details are handled by network upon returning two new sections
 	if s.shouldSplit() {
@@ -281,4 +283,68 @@ func (s *Section) adultCountForExtendedPrefix(p Prefix) int {
 		}
 	}
 	return adults
+}
+
+func (s *Section) FarmDivisor() int64 {
+	// rfc0012 describes the use of primary and sacrificial chunks, but
+	// that is replaced by 'used' and 'spare' MB respectively.
+	// see https://github.com/maidsafe/rfcs/blob/master/text/0012-safecoin-implementation/0012-safecoin-implementation.md#establishing-farming-rate
+	// we want the farming rate to drop as the number of chunks increases, but we
+	// want the rate to increase as we start running out of supply.
+	// TODO confirm if return type is int or float
+	usedMb := s.UsedMb()
+	spareMb := s.SpareMb()
+	// convert used and spare space to the likely situation with primary and
+	// sacrificial chunks.
+	// If spare space is more than used space, there are the same number of
+	// sacrificial as there are primary.
+	// If spare space is less than used space, then the number of sacrificial
+	// is the amount of spare space.
+	tp := usedMb
+	ts := usedMb
+	if spareMb < usedMb {
+		ts = spareMb
+	}
+	if tp > ts {
+		return int64(tp / (tp - ts))
+	} else {
+		return int64(1 << 62)
+	}
+}
+
+// sum of all vault used space
+func (s *Section) UsedMb() float64 {
+	var m float64
+	for _, v := range s.Vaults {
+		m = m + v.UsedMb
+	}
+	return m
+}
+
+// sum of all vault spare space
+func (s *Section) SpareMb() float64 {
+	var m float64
+	for _, v := range s.Vaults {
+		m = m + v.SpareMb
+	}
+	return m
+}
+
+func (s *Section) PutChunk() {
+	// store chunk in all vaults
+	for _, v := range s.Vaults {
+		didStore := v.StoreChunk()
+		if !didStore {
+			// TODO consider removing this vault
+			// for now do nothing
+		}
+	}
+}
+
+func (s *Section) SafecoinPerMb() float64 {
+	// see https://github.com/maidsafe/rfcs/blob/master/text/0012-safecoin-implementation/0012-safecoin-implementation.md#establishing-storecost
+	farmRate := 1.0 / float64(s.FarmDivisor())
+	totalNumberOfClientAccounts := s.UsedMb() / 100 // TODO fix this guess
+	storeCost := farmRate * totalNumberOfClientAccounts / float64(GroupSize)
+	return storeCost
 }
