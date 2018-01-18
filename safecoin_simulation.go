@@ -22,7 +22,7 @@ func main() {
 	}
 	fmt.Println()
 	// initialize report
-	report := "day,totalSafecoin,mbPerSafecoin,totalSections,totalVaults\n"
+	report := "day,totalSafecoin,mbPerSafecoin,totalSections,totalVaults,putsToday,getsToday\n"
 	fmt.Print(report)
 	// simulate the network activity
 	days := 100000
@@ -92,7 +92,7 @@ func main() {
 		// calculate average mb per safecoin
 		mbPerSafecoin := 1.0 / n.AvgSafecoinPerMb()
 		// add day to report
-		line := fmt.Sprintf("%d,%d,%f,%d,%d\n", day, n.TotalSafecoins, mbPerSafecoin, n.TotalSections(), n.TotalVaults())
+		line := fmt.Sprintf("%d,%d,%f,%d,%d,%d,%d\n", day, n.TotalSafecoins, mbPerSafecoin, n.TotalSections(), n.TotalVaults(), int64(sumPuts), int64(sumGets))
 		fmt.Print(line)
 		report = report + line
 	}
