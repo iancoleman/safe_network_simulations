@@ -1,6 +1,7 @@
 package safenet
 
 import (
+	"fmt"
 	"math/big"
 )
 
@@ -80,7 +81,10 @@ func resolveAgeTiebreaker(vi, vj *Vault) bool {
 func (v *Vault) StoreChunk() bool {
 	// check if there's enough space to store the chunk
 	didStore := false
-	if v.SpareMb <= 0 {
+	if v.SpareMb < 0 {
+		fmt.Println("Warning: vault has", v.SpareMb, "spare MB")
+		return didStore
+	} else if v.SpareMb == 0 {
 		return didStore
 	}
 	// store it
