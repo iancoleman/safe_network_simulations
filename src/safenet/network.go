@@ -12,6 +12,7 @@ const SplitBuffer = 3
 const QuorumNumerator = 1
 const QuorumDenominator = 2
 const SplitSize = GroupSize + SplitBuffer
+const MaxSafecoins = 4294967296 // 2^32
 
 var prng = rand.New(rand.NewSource(0))
 
@@ -23,7 +24,6 @@ type Network struct {
 	TotalDepartures   int
 	TotalRelocations  int
 	NeighbourhoodHops []int
-	Safecoins         map[string]bool
 	TotalSafecoins    int
 }
 
@@ -31,7 +31,6 @@ func NewNetwork() Network {
 	return Network{
 		Sections:          map[string]*Section{},
 		NeighbourhoodHops: []int{},
-		Safecoins:         map[string]bool{},
 	}
 }
 
@@ -388,10 +387,9 @@ func (n *Network) DoRandomGet() {
 		}
 	}
 	// try creating the coin if it doesn't exist yet
-	a := randomSafecoinAddress()
-	_, exists := n.Safecoins[a]
+	// do it statistically based on percent of total safecoin issued
+	exists := prng.Float64() < float64(n.TotalSafecoins)/float64(MaxSafecoins)
 	if !exists {
-		n.Safecoins[a] = true
 		n.TotalSafecoins = n.TotalSafecoins + 1
 	}
 }
@@ -406,13 +404,7 @@ func (n *Network) AvgSafecoinPerMb() float64 {
 	return sum / sections
 }
 
-func (n *Network) CreateSafecoin() {
-	a := randomSafecoinAddress()
-	_, exists := n.Safecoins[a]
-	for exists {
-		a = randomSafecoinAddress()
-		_, exists = n.Safecoins[a]
-	}
-	n.Safecoins[a] = true
+// Always works, does not test if it's possible or not due to maxsafecoins
+func (n *Network) ForceCreateSafecoin() {
 	n.TotalSafecoins = n.TotalSafecoins + 1
 }

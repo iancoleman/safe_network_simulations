@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"runtime"
 	"safenet"
 )
 
@@ -15,11 +14,10 @@ func main() {
 	// initialize ICO coins
 	fmt.Println("Initializing ICO coins")
 	for n.TotalSafecoins < numIcoCoins {
-		n.CreateSafecoin()
+		n.ForceCreateSafecoin()
 		if n.TotalSafecoins%100000 == 0 {
 			pct := int64(float64(n.TotalSafecoins) / float64(numIcoCoins) * 100)
-			fmt.Print(pct, "% - ", n.TotalSafecoins, " of ", numIcoCoins, "\r")
-			runtime.GC()
+			fmt.Print(pct, "% - ", n.TotalSafecoins, " of ", numIcoCoins, "\n")
 		}
 	}
 	fmt.Println()
@@ -97,7 +95,6 @@ func main() {
 		line := fmt.Sprintf("%d,%d,%f,%d,%d\n", step, n.TotalSafecoins, mbPerSafecoin, n.TotalSections(), n.TotalVaults())
 		fmt.Print(line)
 		report = report + line
-		runtime.GC()
 	}
 	//fmt.Println(report)
 }
