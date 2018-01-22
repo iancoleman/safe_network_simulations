@@ -344,7 +344,12 @@ func (s *Section) PutChunk() {
 func (s *Section) SafecoinPerMb() float64 {
 	// see https://github.com/maidsafe/rfcs/blob/master/text/0012-safecoin-implementation/0012-safecoin-implementation.md#establishing-storecost
 	farmRate := 1.0 / float64(s.FarmDivisor())
-	totalNumberOfClientAccounts := s.UsedMb() / 100 // TODO fix this guess
+	totalNumberOfClientAccounts := float64(s.TotalClients())
 	storeCost := farmRate * totalNumberOfClientAccounts / float64(GroupSize)
 	return storeCost
+}
+
+func (s *Section) TotalClients() int64 {
+	// TODO fix this guess
+	return int64(s.UsedMb() / float64(len(s.Vaults)) / 10)
 }

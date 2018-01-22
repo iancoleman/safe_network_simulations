@@ -15,84 +15,48 @@ func main() {
 	fmt.Println("Initializing ICO coins")
 	for n.TotalSafecoins < numIcoCoins {
 		n.ForceCreateSafecoin()
-		if n.TotalSafecoins%100000 == 0 {
-			pct := int64(float64(n.TotalSafecoins) / float64(numIcoCoins) * 100)
-			fmt.Print(pct, "% - ", n.TotalSafecoins, " of ", numIcoCoins, "\n")
-		}
 	}
 	fmt.Println()
 	// initialize report
-	report := "day,totalSafecoin,mbPerSafecoin,totalSections,totalVaults,putsToday,getsToday\n"
+	report := "day,totalSafecoin,mbPerSafecoin,totalSections,totalVaults\n"
 	fmt.Print(report)
-	// simulate the network activity
+	// simulate the network activity by creating clients
 	days := 100000
-	totalVaultJoinsPerDay := 110.0
-	totalVaultDepartsPerDay := 10.0
-	totalPutsPerDay := 1000.0
-	totalGetsPerDay := 2000.0
+	newClientsPerDay := 10
+	clients := []safenet.Client{}
 	for day := 0; day < days; day++ {
-		// update joins based on growth rate
-		// TODO base this on the economics of joining
-		totalVaultJoinsPerDay = totalVaultJoinsPerDay * growthRate
-		// update removals based on growth rate
-		// TODO base this on the economics of remaining
-		totalVaultDepartsPerDay = totalVaultDepartsPerDay * growthRate
-		// update puts based on growth rate
-		totalPutsPerDay = totalPutsPerDay * growthRate
-		// update gets based on growth rate
-		totalGetsPerDay = totalGetsPerDay * growthRate
-		// track some variables for interleaving the events as much as possible
-		sumJoins := 0.0
-		sumDeparts := 0.0
-		sumPuts := 0.0
-		sumGets := 0.0
-		mostIters := 0.0
-		if totalVaultJoinsPerDay > mostIters {
-			mostIters = totalVaultJoinsPerDay
+		// create new clients
+		for i := 0; i < newClientsPerDay; i++ {
+			c := safenet.NewConsistentClient()
+			clients = append(clients, c)
 		}
-		if totalVaultDepartsPerDay > mostIters {
-			mostIters = totalVaultDepartsPerDay
-		}
-		if totalPutsPerDay > mostIters {
-			mostIters = totalPutsPerDay
-		}
-		if totalGetsPerDay > mostIters {
-			mostIters = totalGetsPerDay
-		}
-		// interleave the events
-		for i := 0.0; i < mostIters; i++ {
-			pct := (i + 1) / mostIters
-			// add new vaults
-			expectedSumJoins := pct * totalVaultJoinsPerDay
-			for sumJoins < expectedSumJoins {
-				v := safenet.NewVault()
+		// do each client activity
+		for _, c := range clients {
+			// make new vaults
+			newVaults := c.NewVaultsToStart()
+			for _, v := range newVaults {
 				n.AddVault(v)
-				sumJoins = sumJoins + 1
 			}
-			// remove some vaults
-			expectedSumDeparts := pct * totalVaultDepartsPerDay
-			for sumDeparts < expectedSumDeparts {
-				v := n.GetRandomVault()
+			// stop existing vaults
+			stopVaults := c.ExistingVaultsToStop()
+			for _, v := range stopVaults {
 				n.RemoveVault(v)
-				sumDeparts = sumDeparts + 1
 			}
-			// do some puts
-			expectedSumPuts := pct * totalPutsPerDay
-			for sumPuts < expectedSumPuts {
+			// do puts
+			totalPuts := c.MbPutPerDay()
+			for p := 0.0; p < totalPuts; p++ {
 				n.DoRandomPut()
-				sumPuts = sumPuts + 1
 			}
 			// do gets
-			expectedSumGets := pct * totalGetsPerDay
-			for sumGets < expectedSumGets {
+			totalGets := c.MbGetPerDay()
+			for g := 0.0; g < totalGets; g++ {
 				n.DoRandomGet()
-				sumGets = sumGets + 1
 			}
 		}
 		// calculate average mb per safecoin
 		mbPerSafecoin := 1.0 / n.AvgSafecoinPerMb()
 		// add day to report
-		line := fmt.Sprintf("%d,%d,%f,%d,%d,%d,%d\n", day, n.TotalSafecoins, mbPerSafecoin, n.TotalSections(), n.TotalVaults(), int64(sumPuts), int64(sumGets))
+		line := fmt.Sprintf("%d,%d,%f,%d,%d\n", day, n.TotalSafecoins, mbPerSafecoin, n.TotalSections(), n.TotalVaults())
 		fmt.Print(line)
 		report = report + line
 	}
