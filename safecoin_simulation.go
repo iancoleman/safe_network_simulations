@@ -27,7 +27,7 @@ func main() {
 	for day := 0; day < days; day++ {
 		// create new clients
 		for i := 0; i < newClientsPerDay; i++ {
-			c := safenet.NewConsistentClient()
+			c := safenet.NewRandomClient()
 			clients = append(clients, c)
 		}
 		// do each client activity
