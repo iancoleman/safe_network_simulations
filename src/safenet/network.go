@@ -110,6 +110,7 @@ func (n *Network) RemoveVault(v *Vault) {
 		// remove the merged section
 		delete(n.Sections, section.Prefix.Key)
 		// create the new section
+		// TODO set storage consumption after merge
 		ne := newSection(parentPrefix, parentVaults)
 		if ne != nil {
 			for _, s := range ne.NewSections {

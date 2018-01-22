@@ -16,6 +16,8 @@ type Client interface {
 	ExistingVaultsToStop() []*Vault
 }
 
+// Client definitions
+
 type ConsistentClient struct {
 	ConsistentUploader
 	ConsistentDownloader
@@ -28,6 +30,9 @@ type InconsistentClient struct {
 	InconsistentOperator
 }
 
+
+// Client constructors
+
 func NewConsistentClient() *ConsistentClient {
 	c := ConsistentClient{}
 	c.ConsistentOperator.Vaults = []*Vault{}
@@ -39,6 +44,8 @@ func NewInconsistentClient() *InconsistentClient {
 	c.InconsistentOperator.Vaults = []*Vault{}
 	return &c
 }
+
+// Client methods
 
 type ConsistentUploader struct{}
 
