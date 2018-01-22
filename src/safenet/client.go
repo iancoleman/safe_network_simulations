@@ -30,7 +30,6 @@ type InconsistentClient struct {
 	InconsistentOperator
 }
 
-
 // Client constructors
 
 func NewConsistentClient() *ConsistentClient {
@@ -43,6 +42,14 @@ func NewInconsistentClient() *InconsistentClient {
 	c := InconsistentClient{}
 	c.InconsistentOperator.Vaults = []*Vault{}
 	return &c
+}
+
+func NewRandomClient() Client {
+	if prng.Float64() < 0.5 {
+		return NewConsistentClient()
+	} else {
+		return NewInconsistentClient()
+	}
 }
 
 // Client methods
@@ -121,12 +128,4 @@ func (o *InconsistentOperator) ExistingVaultsToStop() []*Vault {
 	toStop := o.Vaults[0:i]
 	o.Vaults = o.Vaults[i:len(o.Vaults)]
 	return toStop
-}
-
-func NewRandomClient() Client {
-	if prng.Float64() < 0.5 {
-		return NewConsistentClient()
-	} else {
-		return NewInconsistentClient()
-	}
 }

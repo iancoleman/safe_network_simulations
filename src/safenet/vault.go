@@ -21,6 +21,7 @@ type Vault struct {
 	IsAttacker bool
 	UsedMb     float64
 	SpareMb    float64
+	Safecoins  int32
 }
 
 func NewVault() *Vault {

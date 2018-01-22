@@ -24,7 +24,6 @@ type Network struct {
 	TotalDepartures   int
 	TotalRelocations  int
 	NeighbourhoodHops []int
-	TotalSafecoins    int
 }
 
 func NewNetwork() Network {
@@ -389,10 +388,20 @@ func (n *Network) DoRandomGet() {
 	}
 	// try creating the coin if it doesn't exist yet
 	// do it statistically based on percent of total safecoin issued
-	exists := prng.Float64() < float64(n.TotalSafecoins)/float64(MaxSafecoins)
+	exists := prng.Float64() < float64(n.TotalSafecoins())/float64(MaxSafecoins)
 	if !exists {
-		n.TotalSafecoins = n.TotalSafecoins + 1
+		section.AllocateSafecoin()
 	}
+}
+
+func (n *Network) TotalSafecoins() int32 {
+	var total int32
+	for prefix := range n.Sections {
+		for _, v := range n.Sections[prefix].Vaults {
+			total = total + v.Safecoins
+		}
+	}
+	return total
 }
 
 func (n *Network) AvgSafecoinPerMb() float64 {
@@ -403,9 +412,4 @@ func (n *Network) AvgSafecoinPerMb() float64 {
 		sections = sections + 1
 	}
 	return sum / sections
-}
-
-// Always works, does not test if it's possible or not due to maxsafecoins
-func (n *Network) ForceCreateSafecoin() {
-	n.TotalSafecoins = n.TotalSafecoins + 1
 }

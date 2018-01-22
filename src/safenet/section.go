@@ -353,3 +353,10 @@ func (s *Section) TotalClients() int64 {
 	// TODO fix this guess
 	return int64(s.UsedMb() / float64(len(s.Vaults)) / 10)
 }
+
+// Decide which vault wins the race for the GET and thus receives the safecoin
+func (s *Section) AllocateSafecoin() {
+	i := prng.Intn(len(s.Vaults))
+	v := s.Vaults[i]
+	v.Safecoins = v.Safecoins + 1
+}
