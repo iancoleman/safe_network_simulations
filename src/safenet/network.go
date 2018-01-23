@@ -413,3 +413,13 @@ func (n *Network) AvgSafecoinPerMb() float64 {
 	}
 	return sum / sections
 }
+
+func (n *Network) AvgFarmDivisor() float64 {
+	var sum float64
+	var sections float64
+	for _, s := range n.Sections {
+		sum = float64(s.FarmDivisor())
+		sections = sections + 1
+	}
+	return sum / sections
+}
