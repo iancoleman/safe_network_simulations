@@ -16,6 +16,15 @@ func main() {
 	fmt.Println("Initializing ICO coins")
 	initIcoCoins(&n)
 	fmt.Println()
+	// initialize 1000 MaidSafe vaults
+	maidsafeClient := safenet.NewConsistentClient()
+	n.AddClient(maidsafeClient)
+	for n.TotalVaults() < 1000 {
+		vaults := maidsafeClient.NewVaultsToStart()
+		for _, v := range vaults {
+			n.AddVault(v)
+		}
+	}
 	// initialize report
 	report := "endOfDay,totalSafecoin,mbPerSafecoin,farmDivisor,totalSections,totalVaults,totalClients,secondsToSimulate\n"
 	// calculate average mb per safecoin
@@ -37,8 +46,7 @@ func main() {
 		// do each client activity
 		// TODO interleave the activity so the early clients do not benefit more than
 		// the later clients.
-		for i, c := range clients {
-			fmt.Printf("%d / %d\r", i, len(clients))
+		for i, c := range n.Clients {
 			// make new vaults
 			newVaults := c.NewVaultsToStart()
 			for _, v := range newVaults {
