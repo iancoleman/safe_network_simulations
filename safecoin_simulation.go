@@ -21,11 +21,10 @@ func main() {
 	fmt.Print(report)
 	// simulate the network activity by creating clients
 	days := 100000
-	clientGrowthRate := 1.003 // 0.3% per day, ie triple in size each year
 	for day := 0; day < days; day++ {
 		// create new clients
 		startTimer := time.Now()
-		newClientsForToday := int(float64(len(clients)) * (clientGrowthRate - 1))
+		newClientsForToday := int(float64(len(clients)) * (growthRate - 1))
 		for i := 0; i < newClientsForToday; i++ {
 			c := safenet.NewRandomClient()
 			clients = append(clients, c)
