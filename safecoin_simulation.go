@@ -17,11 +17,16 @@ func main() {
 	clients := initIcoCoins(n)
 	fmt.Println()
 	// initialize report
-	report := "day,totalSafecoin,mbPerSafecoin,farmDivisor,totalSections,totalVaults,totalClients,secondsToSimulate\n"
+	report := "endOfDay,totalSafecoin,mbPerSafecoin,farmDivisor,totalSections,totalVaults,totalClients,secondsToSimulate\n"
+	// calculate average mb per safecoin
+	mbPerSafecoin := 1.0 / n.AvgSafecoinPerMb()
+	farmDivisor := n.AvgFarmDivisor()
+	report = report + fmt.Sprintf("%d,%d,%f,%f,%d,%d,%d,%f\n", 0, n.TotalSafecoins, mbPerSafecoin, farmDivisor, n.TotalSections(), n.TotalVaults(), len(clients), 0.0)
+	// report current state
 	fmt.Print(report)
 	// simulate the network activity by creating clients
 	days := 100000
-	for day := 0; day < days; day++ {
+	for day := 1; day < days; day++ {
 		// create new clients
 		startTimer := time.Now()
 		newClientsForToday := int(float64(len(clients)) * (growthRate - 1))
