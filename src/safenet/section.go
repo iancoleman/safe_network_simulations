@@ -7,16 +7,18 @@ import (
 )
 
 type Section struct {
-	Prefix Prefix
-	Vaults []*Vault
+	Prefix    Prefix
+	Vaults    []*Vault
+	Uploaders map[string]bool
 }
 
 // Returns a slice of sections since as vaults age they may cascade into
 // multiple sections.
 func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 	s := Section{
-		Prefix: prefix,
-		Vaults: []*Vault{},
+		Prefix:    prefix,
+		Vaults:    []*Vault{},
+		Uploaders: map[string]bool{},
 	}
 	// add each existing vault to new section
 	for _, v := range vaults {
@@ -330,7 +332,7 @@ func (s *Section) SpareMb() float64 {
 	return m
 }
 
-func (s *Section) PutChunk() {
+func (s *Section) PutChunk(u Uploader) {
 	// store chunk in all vaults
 	for _, v := range s.Vaults {
 		didStore := v.StoreChunk()
@@ -338,6 +340,11 @@ func (s *Section) PutChunk() {
 			// TODO consider removing this vault
 			// for now do nothing
 		}
+	}
+	// track uploader for total clients
+	_, exists := s.Uploaders[u.Id()]
+	if !exists {
+		s.Uploaders[u.Id()] = true
 	}
 }
 
@@ -350,13 +357,20 @@ func (s *Section) SafecoinPerMb() float64 {
 }
 
 func (s *Section) TotalClients() int64 {
-	// TODO fix this guess
-	return int64(s.UsedMb() / float64(len(s.Vaults)) / 10)
+	var total int64
+	for range s.Uploaders {
+		total = total + 1
+	}
+	return total
 }
 
 // Decide which vault wins the race for the GET and thus receives the safecoin
 func (s *Section) AllocateSafecoin() {
 	i := prng.Intn(len(s.Vaults))
 	v := s.Vaults[i]
-	v.Safecoins = v.Safecoins + 1
+	if v.Operator == nil {
+		fmt.Println("Warning: tried to allocate safecoin to nil operator")
+		return
+	}
+	v.Operator.AllocateSafecoins(1)
 }

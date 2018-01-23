@@ -14,14 +14,14 @@ func main() {
 	n := safenet.NewNetwork()
 	// initialize ICO coins
 	fmt.Println("Initializing ICO coins")
-	clients := initIcoCoins(n)
+	initIcoCoins(&n)
 	fmt.Println()
 	// initialize report
 	report := "endOfDay,totalSafecoin,mbPerSafecoin,farmDivisor,totalSections,totalVaults,totalClients,secondsToSimulate\n"
 	// calculate average mb per safecoin
 	mbPerSafecoin := 1.0 / n.AvgSafecoinPerMb()
 	farmDivisor := n.AvgFarmDivisor()
-	report = report + fmt.Sprintf("%d,%d,%f,%f,%d,%d,%d,%f\n", 0, n.TotalSafecoins, mbPerSafecoin, farmDivisor, n.TotalSections(), n.TotalVaults(), len(clients), 0.0)
+	report = report + fmt.Sprintf("%d,%d,%f,%f,%d,%d,%d,%f\n", 0, n.TotalSafecoins(), mbPerSafecoin, farmDivisor, n.TotalSections(), n.TotalVaults(), n.TotalClients(), 0.0)
 	// report current state
 	fmt.Print(report)
 	// simulate the network activity by creating clients
@@ -29,10 +29,10 @@ func main() {
 	for day := 1; day < days; day++ {
 		// create new clients
 		startTimer := time.Now()
-		newClientsForToday := int(float64(len(clients)) * (growthRate - 1))
+		newClientsForToday := int(float64(n.TotalClients()) * (growthRate - 1))
 		for i := 0; i < newClientsForToday; i++ {
 			c := safenet.NewRandomClient()
-			clients = append(clients, c)
+			n.AddClient(c)
 		}
 		// do each client activity
 		// TODO interleave the activity so the early clients do not benefit more than
@@ -52,7 +52,7 @@ func main() {
 			// do puts
 			totalPuts := c.MbPutPerDay()
 			for p := 0.0; p < totalPuts; p++ {
-				n.DoRandomPut()
+				n.DoRandomPut(c)
 			}
 			// do gets
 			totalGets := c.MbGetPerDay()
@@ -66,15 +66,14 @@ func main() {
 		// get timing stats
 		timeToSimulate := time.Now().Sub(startTimer).Seconds()
 		// add day to report
-		line := fmt.Sprintf("%d,%d,%f,%f,%d,%d,%d,%f\n", day, n.TotalSafecoins, mbPerSafecoin, farmDivisor, n.TotalSections(), n.TotalVaults(), len(clients), timeToSimulate)
+		line := fmt.Sprintf("%d,%d,%f,%f,%d,%d,%d,%f\n", day, n.TotalSafecoins(), mbPerSafecoin, farmDivisor, n.TotalSections(), n.TotalVaults(), n.TotalClients(), timeToSimulate)
 		fmt.Print(line)
 		report = report + line
 	}
 	//fmt.Println(report)
 }
 
-func initIcoCoins(n safenet.Network) []safenet.Client {
-	clients := []safenet.Client{}
+func initIcoCoins(n *safenet.Network) {
 	// create clients and distribute safecoins based on distribution at
 	// https://omniexplorer.info/spstats.aspx?sp=3
 	// create clients for 0-10 coins
@@ -90,19 +89,11 @@ func initIcoCoins(n safenet.Network) []safenet.Client {
 		fmt.Println("Distributing", d[1], "-", d[2], "coins to", d[0], "ICO clients")
 		for i := 0; i < d[0]; i++ {
 			c := safenet.NewRandomClient()
-			clients = append(clients, c)
 			// TODO use random distribution instead of average
-			coins := (d[1] + d[2]) / 2
-			vaults := c.NewVaultsToStart()
-			vaultCount := len(vaults)
-			coinsPerVault := int32(float64(coins) / float64(vaultCount))
-			var issued int32
-			for _, v := range vaults {
-				v.Safecoins = coinsPerVault
-				n.AddVault(v)
-				issued = issued + coinsPerVault
-			}
-			totalDistributed = totalDistributed + issued
+			coins := int32((d[1] + d[2]) / 2)
+			c.AllocateSafecoins(coins)
+			n.AddClient(c)
+			totalDistributed = totalDistributed + coins
 		}
 	}
 	// distribute coins to top 50 clients
@@ -161,17 +152,9 @@ func initIcoCoins(n safenet.Network) []safenet.Client {
 	fmt.Println("Distributing to top 50 coin holders")
 	for _, coins := range topHolders {
 		c := safenet.NewRandomClient()
-		clients = append(clients, c)
-		vaults := c.NewVaultsToStart()
-		vaultCount := len(vaults)
-		coinsPerVault := int32(float64(coins) / float64(vaultCount))
-		var issued int32
-		for _, v := range vaults {
-			v.Safecoins = coinsPerVault
-			n.AddVault(v)
-			issued = issued + coinsPerVault
-		}
-		totalDistributed = totalDistributed + issued
+		c.AllocateSafecoins(coins)
+		n.AddClient(c)
+		totalDistributed = totalDistributed + coins
 	}
 	// distribute remaining coins between remaining rich clients
 	remaining := numIcoCoins - totalDistributed
@@ -180,34 +163,17 @@ func initIcoCoins(n safenet.Network) []safenet.Client {
 	fmt.Println("Distributing", coins, "coins each to", totalRichClients-1, "rich ICO clients")
 	for i := 0; i < totalRichClients-1; i++ {
 		c := safenet.NewRandomClient()
-		clients = append(clients, c)
-		vaults := c.NewVaultsToStart()
-		vaultCount := len(vaults)
-		coinsPerVault := int32(float64(coins) / float64(vaultCount))
-		var issued int32
-		for _, v := range vaults {
-			v.Safecoins = coinsPerVault
-			n.AddVault(v)
-			issued = issued + coinsPerVault
-		}
-		totalDistributed = totalDistributed + issued
+		c.AllocateSafecoins(coins)
+		n.AddClient(c)
+		totalDistributed = totalDistributed + coins
 	}
 	// distribute remaining coins to last rich client
 	coins = numIcoCoins - totalDistributed
 	fmt.Println("Distributing", coins, "remaining coins to final rich ICO client")
 	c := safenet.NewRandomClient()
-	clients = append(clients, c)
-	vaults := c.NewVaultsToStart()
-	vaultCount := len(vaults)
-	coinsPerVault := int32(float64(coins) / float64(vaultCount))
-	var issued int32
-	for _, v := range vaults {
-		v.Safecoins = coinsPerVault
-		n.AddVault(v)
-		issued = issued + coinsPerVault
-	}
-	totalDistributed = totalDistributed + issued
+	c.AllocateSafecoins(coins)
+	n.AddClient(c)
+	totalDistributed = totalDistributed + coins
 	// Log the result of issuing ico coins
-	fmt.Println("Issued", totalDistributed, "of", numIcoCoins, "ICO coins to", len(clients), "clients")
-	return clients
+	fmt.Println("Issued", totalDistributed, "of", numIcoCoins, "ICO coins to", n.TotalClients(), "clients")
 }

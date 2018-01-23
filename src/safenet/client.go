@@ -7,13 +7,25 @@ package safenet
 // manage vaults
 
 type Client interface {
-	// uploading methods
+	Uploader
+	Downloader
+	Operator
+}
+
+type Uploader interface {
 	MbPutPerDay() float64
-	// fetching methods
+	Id() string
+}
+
+type Downloader interface {
 	MbGetPerDay() float64
-	// vault methods
+}
+
+type Operator interface {
 	NewVaultsToStart() []*Vault
 	ExistingVaultsToStop() []*Vault
+	AllocateSafecoins(int32)
+	TotalSafecoins() int32
 }
 
 // Client definitions
@@ -34,12 +46,18 @@ type InconsistentClient struct {
 
 func NewConsistentClient() *ConsistentClient {
 	c := ConsistentClient{}
+	idBytes := make([]byte, 8)
+	prng.Read(idBytes)
+	c.ConsistentUploader.IdStr = string(idBytes)
 	c.ConsistentOperator.Vaults = []*Vault{}
 	return &c
 }
 
 func NewInconsistentClient() *InconsistentClient {
 	c := InconsistentClient{}
+	idBytes := make([]byte, 8)
+	prng.Read(idBytes)
+	c.InconsistentUploader.IdStr = string(idBytes)
 	c.InconsistentOperator.Vaults = []*Vault{}
 	return &c
 }
@@ -54,10 +72,16 @@ func NewRandomClient() Client {
 
 // Client methods
 
-type ConsistentUploader struct{}
+type ConsistentUploader struct {
+	IdStr string
+}
 
 func (c ConsistentUploader) MbPutPerDay() float64 {
 	return 10
+}
+
+func (c ConsistentUploader) Id() string {
+	return c.IdStr
 }
 
 type ConsistentDownloader struct{}
@@ -67,33 +91,48 @@ func (c *ConsistentDownloader) MbGetPerDay() float64 {
 }
 
 type ConsistentOperator struct {
-	Vaults []*Vault
+	Vaults    []*Vault
+	Safecoins int32
 }
 
-func (c *ConsistentOperator) NewVaultsToStart() []*Vault {
+func (o *ConsistentOperator) NewVaultsToStart() []*Vault {
 	newVaults := []*Vault{}
 	totalNewVaults := 2
 	for i := 0; i < totalNewVaults; i++ {
-		v := NewVault()
+		v := NewVaultForOperator(o)
 		newVaults = append(newVaults, v)
-		c.Vaults = append(c.Vaults, v)
+		o.Vaults = append(o.Vaults, v)
 	}
 	return newVaults
 }
 
-func (c *ConsistentOperator) ExistingVaultsToStop() []*Vault {
-	if len(c.Vaults) == 0 {
+func (o *ConsistentOperator) ExistingVaultsToStop() []*Vault {
+	if len(o.Vaults) == 0 {
 		return []*Vault{}
 	}
-	toStop := c.Vaults[0:1]
-	c.Vaults = c.Vaults[1:len(c.Vaults)]
+	toStop := o.Vaults[0:1]
+	o.Vaults = o.Vaults[1:len(o.Vaults)]
 	return toStop
 }
 
-type InconsistentUploader struct{}
+func (o *ConsistentOperator) AllocateSafecoins(safecoins int32) {
+	o.Safecoins = o.Safecoins + safecoins
+}
+
+func (o *ConsistentOperator) TotalSafecoins() int32 {
+	return o.Safecoins
+}
+
+type InconsistentUploader struct {
+	IdStr string
+}
 
 func (i InconsistentUploader) MbPutPerDay() float64 {
 	return float64(prng.Intn(20))
+}
+
+func (i InconsistentUploader) Id() string {
+	return i.IdStr
 }
 
 type InconsistentDownloader struct{}
@@ -103,14 +142,15 @@ func (i *InconsistentDownloader) MbGetPerDay() float64 {
 }
 
 type InconsistentOperator struct {
-	Vaults []*Vault
+	Vaults    []*Vault
+	Safecoins int32
 }
 
 func (o *InconsistentOperator) NewVaultsToStart() []*Vault {
 	newVaults := []*Vault{}
 	totalNewVaults := prng.Intn(4) + 1
 	for i := 0; i < totalNewVaults; i++ {
-		v := NewVault()
+		v := NewVaultForOperator(o)
 		newVaults = append(newVaults, v)
 		o.Vaults = append(o.Vaults, v)
 	}
@@ -128,4 +168,12 @@ func (o *InconsistentOperator) ExistingVaultsToStop() []*Vault {
 	toStop := o.Vaults[0:i]
 	o.Vaults = o.Vaults[i:len(o.Vaults)]
 	return toStop
+}
+
+func (o *InconsistentOperator) AllocateSafecoins(safecoins int32) {
+	o.Safecoins = o.Safecoins + safecoins
+}
+
+func (o *InconsistentOperator) TotalSafecoins() int32 {
+	return o.Safecoins
 }

@@ -21,7 +21,7 @@ type Vault struct {
 	IsAttacker bool
 	UsedMb     float64
 	SpareMb    float64
-	Safecoins  int32
+	Operator   Operator
 }
 
 func NewVault() *Vault {
@@ -30,6 +30,16 @@ func NewVault() *Vault {
 		Age:     1,
 		UsedMb:  0,
 		SpareMb: randomStorageSize(),
+	}
+}
+
+func NewVaultForOperator(o Operator) *Vault {
+	return &Vault{
+		Name:     NewXorName(),
+		Age:      1,
+		UsedMb:   0,
+		SpareMb:  randomStorageSize(),
+		Operator: o,
 	}
 }
 

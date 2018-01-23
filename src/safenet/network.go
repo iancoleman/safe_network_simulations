@@ -18,6 +18,7 @@ var prng = rand.New(rand.NewSource(0))
 
 type Network struct {
 	Sections          map[string]*Section
+	Clients           []Client
 	TotalMerges       int
 	TotalSplits       int
 	TotalJoins        int
@@ -29,6 +30,7 @@ type Network struct {
 func NewNetwork() Network {
 	return Network{
 		Sections:          map[string]*Section{},
+		Clients:           []Client{},
 		NeighbourhoodHops: []int{},
 	}
 }
@@ -361,14 +363,14 @@ func (n *Network) HasOneSection() bool {
 	return sections == 1
 }
 
-func (n *Network) DoRandomPut() {
+func (n *Network) DoRandomPut(u Uploader) {
 	chunkName := NewXorName()
 	prefix := n.getPrefixForXorname(chunkName)
 	section := n.Sections[prefix.Key]
 	// the section knows it has stored 'some chunk' but doesn't care about the
 	// details of that chunk. The name is only important for deciding the
 	// target section.
-	section.PutChunk()
+	section.PutChunk(u)
 }
 
 func (n *Network) DoRandomGet() {
@@ -396,10 +398,8 @@ func (n *Network) DoRandomGet() {
 
 func (n *Network) TotalSafecoins() int32 {
 	var total int32
-	for prefix := range n.Sections {
-		for _, v := range n.Sections[prefix].Vaults {
-			total = total + v.Safecoins
-		}
+	for _, c := range n.Clients {
+		total = total + c.TotalSafecoins()
 	}
 	return total
 }
@@ -422,4 +422,12 @@ func (n *Network) AvgFarmDivisor() float64 {
 		sections = sections + 1
 	}
 	return sum / sections
+}
+
+func (n *Network) AddClient(c Client) {
+	n.Clients = append(n.Clients, c)
+}
+
+func (n *Network) TotalClients() int {
+	return len(n.Clients)
 }
