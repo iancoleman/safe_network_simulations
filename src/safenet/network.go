@@ -363,17 +363,24 @@ func (n *Network) HasOneSection() bool {
 	return sections == 1
 }
 
-func (n *Network) DoRandomPut(u Uploader, o Operator) {
+func (n *Network) DoRandomPut(u Uploader, o Operator) bool {
+	didUpload := false
 	chunkName := NewXorName()
 	prefix := n.getPrefixForXorname(chunkName)
 	section := n.Sections[prefix.Key]
-	// deduct the amount from the uploader
+	// get the cost to upload this chunk
 	cost := section.SafecoinPerMb()
-	o.DeductPutBalance(cost, n)
-	// the section knows it has stored 'some chunk' but doesn't care about the
-	// details of that chunk. The name is only important for deciding the
-	// target section.
+	// check the uploader has enough putbalance
+	balance := o.TotalPutBalance()
+	if balance < cost {
+		return didUpload
+	}
+	// deduct the amount from the uploader
+	o.AllocatePuts(-1 * cost)
+	// store the chunk on the network
 	section.PutChunk(chunkName, u)
+	didUpload = true
+	return didUpload
 }
 
 func (n *Network) DoRandomGet() {
@@ -435,12 +442,15 @@ func (n *Network) TotalClients() int {
 	return len(n.Clients)
 }
 
-func (n *Network) BuyPuts(coins int32) float64 {
+func (n *Network) BuyPuts(coins int32, o Operator) {
 	// sell the coin to a random section
 	// TODO confirm this is how it would work?!
 	section := n.GetRandomSection()
 	cost := section.SafecoinPerMb()
 	mbPerCoin := 1 / cost
 	puts := mbPerCoin * float64(coins)
-	return puts
+	// deduct coins from operator
+	o.AllocateSafecoins(-1 * coins)
+	// credit put balance to operator
+	o.AllocatePuts(puts)
 }

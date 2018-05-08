@@ -19,13 +19,13 @@ type ConsistentUploader struct {
 	UniversalUploader
 }
 
-func (c ConsistentUploader) MbPutPerDay() float64 {
+func (c ConsistentUploader) MbPutForDay(day int) float64 {
 	return 10
 }
 
 type ConsistentDownloader struct{}
 
-func (c *ConsistentDownloader) MbGetPerDay() float64 {
+func (c *ConsistentDownloader) MbGetForDay(day int) float64 {
 	return 1000
 }
 

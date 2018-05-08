@@ -19,13 +19,13 @@ type HolderUploader struct {
 	UniversalUploader
 }
 
-func (h HolderUploader) MbPutPerDay() float64 {
+func (h HolderUploader) MbPutForDay(day int) float64 {
 	return 0
 }
 
 type HolderDownloader struct{}
 
-func (i *HolderDownloader) MbGetPerDay() float64 {
+func (i *HolderDownloader) MbGetForDay(day int) float64 {
 	return 0
 }
 

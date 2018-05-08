@@ -4,13 +4,13 @@ package safenet
 // Then modify the following functions to perform the behaviour for this
 // specific client type.
 
-func (c TemplateUploader) MbPutPerDay() float64 {
-	// how many mb does this client PUT each day?
+func (c TemplateUploader) MbPutForDay(day int) float64 {
+	// how many mb does this client PUT on a particular day?
 	return 10
 }
 
-func (c *TemplateDownloader) MbGetPerDay() float64 {
-	// how many mb does this client GET each day?
+func (c *TemplateDownloader) MbGetForDay(day int) float64 {
+	// how many mb does this client GET on a particular day?
 	return 1000
 }
 

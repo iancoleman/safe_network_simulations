@@ -11,22 +11,35 @@ func NewInconsistentClient() *InconsistentClient {
 	idBytes := make([]byte, 8)
 	prng.Read(idBytes)
 	c.InconsistentUploader.IdStr = string(idBytes)
+	c.InconsistentUploader.PutHistory = []float64{}
+	c.InconsistentDownloader.GetHistory = []float64{}
 	c.InconsistentOperator.Vaults = []*Vault{}
 	return &c
 }
 
 type InconsistentUploader struct {
 	UniversalUploader
+	PutHistory []float64
 }
 
-func (i InconsistentUploader) MbPutPerDay() float64 {
-	return float64(prng.Intn(20))
+func (i InconsistentUploader) MbPutForDay(day int) float64 {
+	maxPutsPerDay := 20
+	for len(i.PutHistory) <= day {
+		i.PutHistory = append(i.PutHistory, float64(prng.Intn(maxPutsPerDay)))
+	}
+	return i.PutHistory[day]
 }
 
-type InconsistentDownloader struct{}
+type InconsistentDownloader struct {
+	GetHistory []float64
+}
 
-func (i *InconsistentDownloader) MbGetPerDay() float64 {
-	return float64(prng.Intn(2000))
+func (i *InconsistentDownloader) MbGetForDay(day int) float64 {
+	maxGetsPerDay := 2000
+	for len(i.GetHistory) <= day {
+		i.GetHistory = append(i.GetHistory, float64(prng.Intn(maxGetsPerDay)))
+	}
+	return i.GetHistory[day]
 }
 
 type InconsistentOperator struct {

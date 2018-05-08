@@ -13,20 +13,22 @@ type Client interface {
 }
 
 type Uploader interface {
-	MbPutPerDay() float64
+	MbPutForDay(int) float64
 	Id() string
 }
 
 type Downloader interface {
-	MbGetPerDay() float64
+	MbGetForDay(int) float64
 }
 
 type Operator interface {
 	NewVaultsToStart() []*Vault
 	ExistingVaultsToStop() []*Vault
+	ConvertCoinsToPutBalance(int, Uploader, *Network)
 	AllocateSafecoins(int32)
 	TotalSafecoins() int32
-	DeductPutBalance(float64, *Network)
+	AllocatePuts(float64)
+	TotalPutBalance() float64
 }
 
 func NewRandomClient() Client {

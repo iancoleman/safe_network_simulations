@@ -16,6 +16,15 @@ type UniversalOperator struct {
 	PutBalance float64
 }
 
+func (o *UniversalOperator) ConvertCoinsToPutBalance(currentDay int, u Uploader, n *Network) {
+	// TODO this should be overridden by specific client types
+	// but for now it's done on demand by all client types
+	mbToPutToday := u.MbPutForDay(currentDay)
+	for mbToPutToday > o.PutBalance && o.Safecoins > 0 {
+		n.BuyPuts(1, o)
+	}
+}
+
 func (o *UniversalOperator) AllocateSafecoins(safecoins int32) {
 	o.Safecoins = o.Safecoins + safecoins
 }
@@ -24,17 +33,18 @@ func (o *UniversalOperator) TotalSafecoins() int32 {
 	return o.Safecoins
 }
 
-func (o *UniversalOperator) DeductPutBalance(amount float64, n *Network) {
-	// if not enough put balance, sell some coins to buy some puts
-	// TODO allow this strategy to be varied rather than strictly on demand
-	for o.PutBalance < amount && o.Safecoins > 0 {
-		// sell a coin to the network
-		puts := n.BuyPuts(1)
-		// TODO network should manage operator balances
-		o.Safecoins = o.Safecoins - 1
-		o.PutBalance = o.PutBalance + puts
-	}
-	// deduct the amount
-	// TODO validate that put balance does not go below zero
-	o.PutBalance = o.PutBalance - amount
+func (o *UniversalOperator) AllocatePuts(puts float64) {
+	o.PutBalance = o.PutBalance + puts
+}
+
+func (o *UniversalOperator) TotalPutBalance() float64 {
+	return o.PutBalance
+}
+
+func (o *UniversalOperator) NewVaultsToStart() []*Vault {
+	return []*Vault{}
+}
+
+func (o *UniversalOperator) ExistingVaultsToStop() []*Vault {
+	return []*Vault{}
 }

@@ -57,13 +57,15 @@ func main() {
 			for _, v := range stopVaults {
 				n.RemoveVault(v)
 			}
+			// buy put balance
+			c.ConvertCoinsToPutBalance(day, c, &n)
 			// do puts
-			totalPuts := c.MbPutPerDay()
+			totalPuts := c.MbPutForDay(day)
 			for p := 0.0; p < totalPuts; p++ {
 				n.DoRandomPut(c, c)
 			}
 			// do gets
-			totalGets := c.MbGetPerDay()
+			totalGets := c.MbGetForDay(day)
 			for g := 0.0; g < totalGets; g++ {
 				n.DoRandomGet()
 			}
