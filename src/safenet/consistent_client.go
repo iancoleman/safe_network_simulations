@@ -16,15 +16,11 @@ func NewConsistentClient() *ConsistentClient {
 }
 
 type ConsistentUploader struct {
-	IdStr string
+	UniversalUploader
 }
 
 func (c ConsistentUploader) MbPutPerDay() float64 {
 	return 10
-}
-
-func (c ConsistentUploader) Id() string {
-	return c.IdStr
 }
 
 type ConsistentDownloader struct{}
@@ -34,9 +30,7 @@ func (c *ConsistentDownloader) MbGetPerDay() float64 {
 }
 
 type ConsistentOperator struct {
-	Vaults     []*Vault
-	Safecoins  int32
-	PutBalance float64
+	UniversalOperator
 }
 
 func (o *ConsistentOperator) NewVaultsToStart() []*Vault {
@@ -57,27 +51,4 @@ func (o *ConsistentOperator) ExistingVaultsToStop() []*Vault {
 	toStop := o.Vaults[0:1]
 	o.Vaults = o.Vaults[1:len(o.Vaults)]
 	return toStop
-}
-
-func (o *ConsistentOperator) AllocateSafecoins(safecoins int32) {
-	o.Safecoins = o.Safecoins + safecoins
-}
-
-func (o *ConsistentOperator) TotalSafecoins() int32 {
-	return o.Safecoins
-}
-
-func (o *ConsistentOperator) DeductPutBalance(amount float64, n *Network) {
-	// if not enough put balance, sell some coins to buy some puts
-	// TODO allow this strategy to be varied rather than strictly on demand
-	for o.PutBalance < amount && o.Safecoins > 0 {
-		// sell a coin to the network
-		puts := n.BuyPuts(1)
-		// TODO network should manage operator balances
-		o.Safecoins = o.Safecoins - 1
-		o.PutBalance = o.PutBalance + puts
-	}
-	// deduct the amount
-	// TODO validate that put balance does not go below zero
-	o.PutBalance = o.PutBalance - amount
 }

@@ -67,40 +67,12 @@ func NewTemplateClient() *TemplateClient {
 	return &c
 }
 
-func (c TemplateUploader) Id() string {
-	return c.IdStr
-}
-
 type TemplateUploader struct {
-	IdStr string
+	UniversalUploader
 }
 
 type TemplateDownloader struct{}
 
 type TemplateOperator struct {
-	Vaults     []*Vault
-	Safecoins  int32
-	PutBalance float64
-}
-
-func (o *TemplateOperator) AllocateSafecoins(safecoins int32) {
-	o.Safecoins = o.Safecoins + safecoins
-}
-
-func (o *TemplateOperator) TotalSafecoins() int32 {
-	return o.Safecoins
-}
-
-func (o *TemplateOperator) DeductPutBalance(amount float64, n *Network) {
-	// if not enough put balance, sell some coins to buy some puts
-	// TODO allow this strategy to be varied rather than strictly on demand
-	for o.PutBalance < amount && o.Safecoins > 0 {
-		// sell a coin to the network
-		puts := n.BuyPuts(1)
-		// TODO network should manage operator balances
-		o.Safecoins = o.Safecoins - 1
-		o.PutBalance = o.PutBalance + puts
-	}
-	// deduct the amount
-	o.PutBalance = o.PutBalance - amount
+	UniversalOperator
 }
