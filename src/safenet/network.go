@@ -363,10 +363,13 @@ func (n *Network) HasOneSection() bool {
 	return sections == 1
 }
 
-func (n *Network) DoRandomPut(u Uploader) {
+func (n *Network) DoRandomPut(u Uploader, o Operator) {
 	chunkName := NewXorName()
 	prefix := n.getPrefixForXorname(chunkName)
 	section := n.Sections[prefix.Key]
+	// deduct the amount from the uploader
+	cost := section.SafecoinPerMb()
+	o.DeductPutBalance(cost, n)
 	// the section knows it has stored 'some chunk' but doesn't care about the
 	// details of that chunk. The name is only important for deciding the
 	// target section.
@@ -430,4 +433,14 @@ func (n *Network) AddClient(c Client) {
 
 func (n *Network) TotalClients() int {
 	return len(n.Clients)
+}
+
+func (n *Network) BuyPuts(coins int32) float64 {
+	// sell the coin to a random section
+	// TODO confirm this is how it would work?!
+	section := n.GetRandomSection()
+	cost := section.SafecoinPerMb()
+	mbPerCoin := 1 / cost
+	puts := mbPerCoin * float64(coins)
+	return puts
 }

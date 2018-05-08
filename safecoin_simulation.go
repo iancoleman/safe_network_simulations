@@ -60,7 +60,7 @@ func main() {
 			// do puts
 			totalPuts := c.MbPutPerDay()
 			for p := 0.0; p < totalPuts; p++ {
-				n.DoRandomPut(c)
+				n.DoRandomPut(c, c)
 			}
 			// do gets
 			totalGets := c.MbGetPerDay()

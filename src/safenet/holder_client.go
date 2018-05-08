@@ -34,8 +34,9 @@ func (i *HolderDownloader) MbGetPerDay() float64 {
 }
 
 type HolderOperator struct {
-	Vaults    []*Vault
-	Safecoins int32
+	Vaults     []*Vault
+	Safecoins  int32
+	PutBalance float64
 }
 
 func (o *HolderOperator) NewVaultsToStart() []*Vault {
@@ -53,4 +54,18 @@ func (o *HolderOperator) AllocateSafecoins(safecoins int32) {
 
 func (o *HolderOperator) TotalSafecoins() int32 {
 	return o.Safecoins
+}
+
+func (o *HolderOperator) DeductPutBalance(amount float64, n *Network) {
+	// if not enough put balance, sell some coins to buy some puts
+	// TODO allow this strategy to be varied rather than strictly on demand
+	for o.PutBalance < amount && o.Safecoins > 0 {
+		// sell a coin to the network
+		puts := n.BuyPuts(1)
+		// TODO network should manage operator balances
+		o.Safecoins = o.Safecoins - 1
+		o.PutBalance = o.PutBalance + puts
+	}
+	// deduct the amount
+	o.PutBalance = o.PutBalance - amount
 }

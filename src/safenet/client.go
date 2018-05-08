@@ -26,6 +26,7 @@ type Operator interface {
 	ExistingVaultsToStop() []*Vault
 	AllocateSafecoins(int32)
 	TotalSafecoins() int32
+	DeductPutBalance(float64, *Network)
 }
 
 func NewRandomClient() Client {
