@@ -46,7 +46,7 @@ func main() {
 		// do each client activity
 		// TODO interleave the activity so the early clients do not benefit more than
 		// the later clients.
-		for i, c := range n.Clients {
+		for _, c := range n.Clients {
 			// make new vaults
 			newVaults := c.NewVaultsToStart()
 			for _, v := range newVaults {

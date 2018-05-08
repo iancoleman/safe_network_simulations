@@ -24,7 +24,6 @@ func newSection(prefix Prefix, vaults []*Vault) *NetworkEvent {
 	for _, v := range vaults {
 		v.SetPrefix(s.Prefix)
 		s.Vaults = append(s.Vaults, v)
-		// TODO set storage values for this vault
 	}
 	// split into two sections if needed.
 	// there is no vault relocation here.
@@ -54,7 +53,22 @@ func (s *Section) addVault(v *Vault) (*NetworkEvent, bool) {
 	//}
 	v.SetPrefix(s.Prefix)
 	s.Vaults = append(s.Vaults, v)
-	// TODO set storage values for this vault
+	// set chunks for this vault
+	// TODO this can be improved. Currently it works based on all vaults
+	// store all chunks, so just take the first vault and duplicate the
+	// chunks into this new vault. But in reality only the GROUP_SIZE
+	// nearest vaults will look after the chunk. So some vaults may
+	// drop some chunks for this one to take it on instead.
+	if len(s.Vaults) > 0 {
+		v.Chunks = []XorName{}
+		for _, chunk := range s.Vaults[0].Chunks {
+			didStore := v.StoreChunk(chunk)
+			if !didStore {
+				// TODO consider removing this vault
+				// do nothing for now
+			}
+		}
+	}
 	// split into two sections if needed
 	// details are handled by network upon returning two new sections
 	if s.shouldSplit() {
@@ -72,6 +86,10 @@ func (s *Section) addVault(v *Vault) (*NetworkEvent, bool) {
 }
 
 func (s *Section) removeVault(v *Vault) *NetworkEvent {
+	// TODO ensure chunks are taken by other vaults so the section still has
+	// GROUP_SIZE copies of every chunk.
+	//for _, chunk := range v.Chunks {
+	//}
 	// remove from section
 	for i, vault := range s.Vaults {
 		if vault == v {
@@ -289,7 +307,7 @@ func (s *Section) adultCountForExtendedPrefix(p Prefix) int {
 
 func (s *Section) FarmDivisor() int64 {
 	// rfc0012 describes the use of primary and sacrificial chunks, but
-	// that is replaced by 'used' and 'spare' MB respectively.
+	// that is replaced here by 'used' and 'spare' MB respectively.
 	// see https://github.com/maidsafe/rfcs/blob/master/text/0012-safecoin-implementation/0012-safecoin-implementation.md#establishing-farming-rate
 	// we want the farming rate to drop as the number of chunks increases, but we
 	// want the rate to increase as we start running out of supply.
@@ -318,7 +336,7 @@ func (s *Section) FarmDivisor() int64 {
 func (s *Section) UsedMb() float64 {
 	var m float64
 	for _, v := range s.Vaults {
-		m = m + v.UsedMb
+		m = m + float64(len(v.Chunks))
 	}
 	return m
 }
@@ -327,24 +345,26 @@ func (s *Section) UsedMb() float64 {
 func (s *Section) SpareMb() float64 {
 	var m float64
 	for _, v := range s.Vaults {
-		m = m + v.SpareMb
+		m = m + float64(v.SpareMb())
 	}
 	return m
 }
 
-func (s *Section) PutChunk(u Uploader) {
+func (s *Section) PutChunk(chunk XorName, uploader Uploader) {
 	// store chunk in all vaults
+	// TODO in reality this chunk will only be stored in the GROUP_SIZE closest
+	// vaults.
 	for _, v := range s.Vaults {
-		didStore := v.StoreChunk()
+		didStore := v.StoreChunk(chunk)
 		if !didStore {
 			// TODO consider removing this vault
 			// for now do nothing
 		}
 	}
-	// track uploader for total clients
-	_, exists := s.Uploaders[u.Id()]
+	// track uploader for obtaining the 'total clients' value
+	_, exists := s.Uploaders[uploader.Id()]
 	if !exists {
-		s.Uploaders[u.Id()] = true
+		s.Uploaders[uploader.Id()] = true
 	}
 }
 

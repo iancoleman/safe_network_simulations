@@ -370,7 +370,7 @@ func (n *Network) DoRandomPut(u Uploader) {
 	// the section knows it has stored 'some chunk' but doesn't care about the
 	// details of that chunk. The name is only important for deciding the
 	// target section.
-	section.PutChunk(u)
+	section.PutChunk(chunkName, u)
 }
 
 func (n *Network) DoRandomGet() {

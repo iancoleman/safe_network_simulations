@@ -6,7 +6,7 @@ import (
 )
 
 // the starting storage space for a vault is chosen randomly from this list
-var startingStorageSizesMb = []float64{
+var startingStorageSizesMb = []int64{
 	100,
 	200,
 	300,
@@ -19,8 +19,8 @@ type Vault struct {
 	Prefix     Prefix
 	Age        int
 	IsAttacker bool
-	UsedMb     float64
-	SpareMb    float64
+	Chunks     []XorName
+	TotalMb    int64
 	Operator   Operator
 }
 
@@ -28,8 +28,8 @@ func NewVault() *Vault {
 	return &Vault{
 		Name:    NewXorName(),
 		Age:     1,
-		UsedMb:  0,
-		SpareMb: randomStorageSize(),
+		TotalMb: 0,
+		Chunks:  []XorName{},
 	}
 }
 
@@ -37,14 +37,28 @@ func NewVaultForOperator(o Operator) *Vault {
 	return &Vault{
 		Name:     NewXorName(),
 		Age:      1,
-		UsedMb:   0,
-		SpareMb:  randomStorageSize(),
+		TotalMb:  randomStorageSize(),
+		Chunks:   []XorName{},
 		Operator: o,
 	}
 }
 
 func (v *Vault) SetPrefix(p Prefix) {
+	// check new prefix
+	if !p.Matches(v.Name) {
+		fmt.Println("Warning: Tried to set prefix that doesn't match vault name")
+		fmt.Println("This vault will not have their prefix changed")
+		fmt.Println("Consider if using vault.renameWithPrefix is suitable")
+		return
+	}
+	// if the new prefix is longer, some chunks will be dead
+	hasDeadChunks := len(p.bits) > len(v.Prefix.bits)
+	// set new prefix
 	v.Prefix = p
+	// remove dead chunks
+	if hasDeadChunks {
+		v.removeDeadChunks()
+	}
 }
 
 func (v *Vault) IncrementAge() {
@@ -60,6 +74,21 @@ func (v *Vault) renameWithPrefix(p Prefix) {
 	for i, prefixBit := range p.bits {
 		v.Name.SetBit(i, prefixBit)
 	}
+	v.Prefix = p
+	v.removeDeadChunks()
+}
+
+func (v *Vault) removeDeadChunks() {
+	// drop chunks that don't match the vault prefix.
+	// TODO should drop chunks that aren't within GROUP_SIZE vaults close to
+	// this vaults name.
+	newChunks := []XorName{}
+	for _, existingChunk := range v.Chunks {
+		if v.Prefix.Matches(existingChunk) {
+			newChunks = append(newChunks, existingChunk)
+		}
+	}
+	v.Chunks = newChunks
 }
 
 type oldestFirst []*Vault
@@ -89,24 +118,27 @@ func resolveAgeTiebreaker(vi, vj *Vault) bool {
 	return xi.Cmp(xj) == 1
 }
 
-func (v *Vault) StoreChunk() bool {
-	// check if there's enough space to store the chunk
+func (v *Vault) StoreChunk(chunk XorName) bool {
 	didStore := false
-	if v.SpareMb < 0 {
-		fmt.Println("Warning: vault has", v.SpareMb, "spare MB")
-		return didStore
-	} else if v.SpareMb == 0 {
+	// check if there's enough space to store the chunk
+	spareSpace := v.SpareMb()
+	if spareSpace <= 0 {
 		return didStore
 	}
 	// store it
-	v.UsedMb = v.UsedMb + 1
-	v.SpareMb = v.SpareMb - 1
+	v.Chunks = append(v.Chunks, chunk)
 	// let the section know it was stored
 	didStore = true
 	return didStore
 }
 
-func randomStorageSize() float64 {
+func (v *Vault) SpareMb() int64 {
+	// Assumes all chunks are 1 MB in size.
+	// TODO change this assumption since some chunks will be less.
+	return v.TotalMb - int64(len(v.Chunks))
+}
+
+func randomStorageSize() int64 {
 	// most vaults have smaller storage size
 	n := len(startingStorageSizesMb)
 	i := prng.Intn(n)
