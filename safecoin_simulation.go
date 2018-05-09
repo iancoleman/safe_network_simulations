@@ -84,7 +84,7 @@ func main() {
 }
 
 func initIcoCoins(n *safenet.Network) {
-	// create clients and distribute safecoins based on distribution at
+	// create holder clients and distribute safecoins based on distribution at
 	// https://omniexplorer.info/spstats.aspx?sp=3
 	// create clients for 0-10 coins
 	distribution := make([][]int, 0)
@@ -98,7 +98,7 @@ func initIcoCoins(n *safenet.Network) {
 	for _, d := range distribution {
 		fmt.Println("Distributing", d[1], "-", d[2], "coins to", d[0], "ICO clients")
 		for i := 0; i < d[0]; i++ {
-			c := safenet.NewRandomClient()
+			c := safenet.NewHolderClient()
 			// TODO use random distribution instead of average
 			coins := int32((d[1] + d[2]) / 2)
 			c.AllocateSafecoins(coins)
