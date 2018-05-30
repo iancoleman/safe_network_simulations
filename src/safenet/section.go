@@ -306,30 +306,32 @@ func (s *Section) adultCountForExtendedPrefix(p Prefix) int {
 }
 
 func (s *Section) FarmDivisor() int64 {
-	// rfc0012 describes the use of primary and sacrificial chunks, but
+	// RFC0012 describes the use of primary and sacrificial chunks, but
 	// that is replaced here by 'used' and 'spare' MB respectively.
 	// see https://github.com/maidsafe/rfcs/blob/master/text/0012-safecoin-implementation/0012-safecoin-implementation.md#establishing-farming-rate
-	// we want the farming rate to drop as the number of chunks increases, but we
+	// We want the farming rate to drop as the number of chunks increases, but we
 	// want the rate to increase as we start running out of supply.
-	// TODO confirm if return type is int or float
-	usedMb := s.UsedMb()
-	spareMb := s.SpareMb()
-	// convert used and spare space to the likely situation with primary and
+	// Convert used and spare space to the likely situation with primary and
 	// sacrificial chunks.
 	// If spare space is more than used space, there are the same number of
 	// sacrificial as there are primary.
 	// If spare space is less than used space, then the number of sacrificial
 	// is the amount of spare space.
-	tp := usedMb
-	ts := usedMb
-	if spareMb < usedMb {
-		ts = spareMb
-	}
-	if tp > ts {
-		return int64(tp / (tp - ts))
-	} else {
-		return int64(1 << 62)
-	}
+	// Since spare space is reported by vaults and there is incentive to keep
+	// farming as profitable as possible, farm rate will always be 1.
+	return 1
+	//usedMb := s.UsedMb()
+	//spareMb := s.SpareMb()
+	//tp := usedMb
+	//ts := usedMb
+	//if spareMb < usedMb {
+	//	ts = spareMb
+	//}
+	//if tp > ts {
+	//	return int64(tp / (tp - ts))
+	//} else {
+	//	return int64(1 << 62)
+	//}
 }
 
 // sum of all vault used space
