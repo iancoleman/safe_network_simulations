@@ -428,7 +428,7 @@ func (n *Network) AvgFarmDivisor() float64 {
 	var sum float64
 	var sections float64
 	for _, s := range n.Sections {
-		sum = float64(s.FarmDivisor())
+		sum = sum + float64(s.FarmDivisor())
 		sections = sections + 1
 	}
 	return sum / sections
